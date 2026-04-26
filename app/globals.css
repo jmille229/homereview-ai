@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-brand-bg text-brand-navy;
+  }
+
+  /* Remove default button focus outline; we apply our own */
+  button:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-amber;
+  }
+
+  input:focus,
+  textarea:focus {
+    @apply outline-none ring-1 ring-brand-navy;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-brand-border rounded-xl p-5;
+  }
+
+  .btn-primary {
+    @apply w-full py-3 px-4 text-sm font-medium bg-brand-navy text-white rounded-xl
+           hover:bg-opacity-90 active:bg-opacity-80 transition-colors
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply w-full py-3 px-4 text-sm text-brand-muted bg-transparent border border-brand-border
+           rounded-xl hover:border-brand-border-dark transition-colors;
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold text-brand-muted uppercase tracking-[0.06em] mb-2;
+  }
+
+  .input {
+    @apply w-full px-3 py-2.5 text-sm border border-brand-border rounded-lg
+           bg-white text-brand-navy placeholder:text-brand-muted;
+  }
+
+  /* Blurred locked sections */
+  .locked {
+    @apply relative;
+  }
+
+  .locked-content {
+    @apply blur-sm select-none pointer-events-none;
+  }
+
+  .lock-chip {
+    @apply absolute inset-0 flex items-center justify-center;
+  }
+}
