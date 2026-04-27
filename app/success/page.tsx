@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import type { GenerateReportResponse, Product } from '@/lib/types'
 
@@ -14,7 +14,9 @@ const MESSAGES = [
   'Almost ready…',
 ]
 
-export default function SuccessPage() {
+// Separated into its own component because useSearchParams() requires
+// a Suspense boundary in Next.js 14 when used in a client component.
+function SuccessContent() {
   const router = useRouter()
   const params = useSearchParams()
   const [status, setStatus] = useState<Status>('generating')
@@ -26,7 +28,6 @@ export default function SuccessPage() {
   const product = params.get('product') as Product | null
 
   useEffect(() => {
-    // Cycle through messages while generating
     const interval = setInterval(() => {
       setMsgIndex((i) => (i + 1) % MESSAGES.length)
     }, 2500)
@@ -34,7 +35,7 @@ export default function SuccessPage() {
   }, [])
 
   useEffect(() => {
-    if (calledRef.current) return // Prevent double-fire in React strict mode
+    if (calledRef.current) return
     if (!stripeSessionId || !product) {
       setError('Invalid payment confirmation. Please contact support.')
       setStatus('error')
@@ -61,8 +62,6 @@ export default function SuccessPage() {
 
         const { sessionId } = json as GenerateReportResponse
         const type = product === 'brief' || product === 'bundle' ? 'brief' : 'shield'
-
-        // For bundle, we generated the appropriate report based on session flow
         router.replace(`/report/${type}/${sessionId}`)
       } catch {
         setError('Network error during report generation. Please contact support.')
@@ -105,5 +104,28 @@ export default function SuccessPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+// Suspense boundary is required by Next.js 14 when useSearchParams()
+// is used in a client component during static page generation.
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <LoadingSpinner size={36} color="#B8722E" />
+            </div>
+            <p className="text-lg font-semibold text-brand-navy mb-1.5">
+              Loading…
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <SuccessContent />
+    </Suspense>
   )
 }
