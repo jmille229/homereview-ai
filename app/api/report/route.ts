@@ -153,16 +153,16 @@ export async function POST(req: Request): Promise<NextResponse> {
         system:    buildDiagnosticBriefSystem(categoryLabel),
         userText,
         schema:    diagnosticBriefSchema,
-        model:     'sonnet',
-        maxTokens: 2000,
+        model:     'haiku',
+        maxTokens: 1500,
       })
     } else {
       const shieldReport = await callClaude({
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
         schema:    quoteShieldSchema,
-        model:     'sonnet',
-        maxTokens: 2000,
+        model:     'haiku',
+        maxTokens: 1500,
       })
       report = { ...shieldReport, updates: [] }
     }
