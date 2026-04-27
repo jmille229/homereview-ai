@@ -27,6 +27,7 @@ import type {
 } from '@/lib/types'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac:        'HVAC (Heating, Cooling & Air Quality)',
@@ -153,7 +154,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         userText,
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
-        maxTokens: 2500,
+        maxTokens: 1800,
       })
     } else {
       const shieldReport = await callClaude({
@@ -161,7 +162,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         userText,
         schema:    quoteShieldSchema,
         model:     'sonnet',
-        maxTokens: 2500,
+        maxTokens: 1800,
       })
       report = { ...shieldReport, updates: [] }
     }
