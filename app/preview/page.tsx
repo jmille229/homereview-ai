@@ -8,46 +8,59 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import type { Product } from '@/lib/types'
 
-const PRE_UNLOCKS = [
-  'Complete diagnosis and most likely root cause',
-  'DIY feasibility — what you can and cannot self-fix',
-  'Exactly who to hire and what credentials to verify',
-  '8 questions to ask every contractor before choosing one',
-  'Hiring red flags specific to this trade and job type',
-  'What to insist on in writing before work begins',
+// ─── Package definitions ──────────────────────────────────────────────────────
+
+const PACKAGES: Array<{
+  product: Product
+  flow: 'pre' | 'post'
+  badge: string
+  badgeClass: string
+  label: string
+  tagline: string
+  price: string
+  meta: string
+  features: string[]
+}> = [
+  {
+    product: 'brief',
+    flow: 'pre',
+    badge: 'Pre-quote',
+    badgeClass: 'bg-blue-50 text-blue-700',
+    label: 'Diagnostic Brief',
+    tagline: 'Know what you\'re dealing with before you call anyone.',
+    price: '$14',
+    meta: 'Instant · PDF included',
+    features: [
+      'Complete diagnosis & most likely root cause',
+      'DIY feasibility — what you can and can\'t self-fix',
+      'Exactly who to hire and what credentials to verify',
+      'Regional cost range with what drives variation',
+      '8 tailored questions to ask every contractor',
+      'Hiring red flags specific to this trade',
+      'What to insist on in writing before work begins',
+    ],
+  },
+  {
+    product: 'shield',
+    flow: 'post',
+    badge: 'Post-quote',
+    badgeClass: 'bg-green-50 text-green-700',
+    label: 'Quote Shield',
+    tagline: 'Find out if the price is fair before you sign anything.',
+    price: '$34',
+    meta: 'Instant · Living report · 60 days to update',
+    features: [
+      'Line-by-line analysis of your quote',
+      'Upsell & padding detection',
+      'Pricing verdict with specific dollar reasoning',
+      'Missing scope — what should be in the quote but isn\'t',
+      'Red flags & green flags in this contractor\'s approach',
+      'Negotiation guide with exact language to use',
+      '8–12 questions tailored to this specific contractor',
+      'Update free for 60 days as new quotes come in',
+    ],
+  },
 ]
-
-const POST_UNLOCKS = [
-  'Line-by-line analysis of your quote',
-  'Upsell and unnecessary item detection',
-  'Pricing verdict with specific dollar reasoning',
-  '8–12 questions tailored to this specific contractor',
-  'Negotiation guide with exact language to use',
-  'Living report — update free for 60 days as new info arrives',
-]
-
-const PRODUCT_MAP: Record<string, Product> = {
-  pre: 'brief',
-  post: 'shield',
-}
-
-const PRICE_MAP: Record<Product, string> = {
-  brief: '$14',
-  shield: '$34',
-  bundle: '$42',
-}
-
-const PRODUCT_LABEL: Record<Product, string> = {
-  brief: 'Diagnostic Brief',
-  shield: 'Quote Shield',
-  bundle: 'HomeReview Bundle',
-}
-
-const PRODUCT_META: Record<Product, string> = {
-  brief: 'Instant · PDF download',
-  shield: 'Instant · Living report · 60 days · PDF export',
-  bundle: 'Diagnostic Brief + Quote Shield · Save $6',
-}
 
 export default function PreviewPage() {
   const router = useRouter()
@@ -62,13 +75,12 @@ export default function PreviewPage() {
 
   if (!flow || !preview || !sessionId) return null
 
-  const product = PRODUCT_MAP[flow]
-  const unlocks = flow === 'pre' ? PRE_UNLOCKS : POST_UNLOCKS
-  const price = PRICE_MAP[product]
-  const productLabel = PRODUCT_LABEL[product]
-  const productMeta = PRODUCT_META[product]
+  // The primary package is the one matching their flow
+  // The secondary package is shown as an alternative
+  const primaryPackage = PACKAGES.find((p) => p.flow === flow)!
+  const secondaryPackage = PACKAGES.find((p) => p.flow !== flow)!
 
-  const handlePurchase = async (selectedProduct: Product) => {
+  const handlePurchase = async (product: Product) => {
     setPurchaseError(null)
     setPurchasing(true)
 
@@ -76,7 +88,7 @@ export default function PreviewPage() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, product: selectedProduct }),
+        body: JSON.stringify({ sessionId, product }),
       })
 
       const json: { url: string } | { error: string } = await res.json()
@@ -87,7 +99,6 @@ export default function PreviewPage() {
         return
       }
 
-      // Redirect to Stripe Checkout (hosted, PCI-compliant)
       window.location.href = (json as { url: string }).url
     } catch {
       setPurchaseError('Network error. Please check your connection and try again.')
@@ -100,23 +111,24 @@ export default function PreviewPage() {
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar onBack={() => router.push('/intake')} />
 
-        {/* Header */}
+        {/* ── Free preview header ──────────────────────────────────────────── */}
         <div className="mb-5">
-          <h2 className="text-2xl font-semibold text-brand-navy mb-1">
-            Your free preview is ready
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-brand-border rounded-full mb-4">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+            <span className="text-xs font-medium text-brand-muted">Free preview</span>
+          </div>
+          <h2 className="text-2xl font-semibold text-brand-navy">
+            Here&apos;s what we found
           </h2>
-          <p className="text-sm text-brand-muted">
-            {flow === 'pre' ? 'Pre-quote analysis' : 'Post-quote analysis'}
-          </p>
         </div>
 
-        {/* Issue summary */}
+        {/* ── Issue summary ────────────────────────────────────────────────── */}
         <div className="card mb-2.5">
           <p className="section-label">Issue Summary</p>
           <p className="text-sm text-brand-navy leading-relaxed">{preview.summary}</p>
         </div>
 
-        {/* Severity + cost */}
+        {/* ── Severity + cost ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-2.5 mb-2.5">
           <div className="card">
             <p className="section-label">Severity</p>
@@ -132,74 +144,124 @@ export default function PreviewPage() {
           </div>
         </div>
 
-        {/* Key insight */}
-        <div className="card border-l-[3px] border-l-blue-300 rounded-l-none mb-6">
-          <p className="section-label text-blue-600">Key Insight</p>
+        {/* ── Key insight ──────────────────────────────────────────────────── */}
+        <div className="card border-l-[3px] border-l-brand-amber rounded-l-none mb-10">
+          <p className="section-label text-brand-amber">Key Insight</p>
           <p className="text-sm text-brand-navy leading-relaxed">{preview.keyInsight}</p>
         </div>
 
-        {/* Paywall card */}
-        <div className="border border-brand-border rounded-xl overflow-hidden">
-          {/* What's locked */}
-          <div className="p-5 bg-gray-50">
-            <p className="text-sm font-semibold text-brand-navy mb-3">
-              {productLabel} unlocks:
-            </p>
-            <ul className="space-y-2" aria-label="Report contents">
-              {unlocks.map((item) => (
-                <li key={item} className="flex items-start gap-2.5 opacity-40">
-                  <div className="w-[15px] h-[15px] border border-brand-border-dark rounded-[3px] flex-shrink-0 mt-0.5" />
-                  <span className="text-xs text-brand-navy">{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* ── Upsell section ───────────────────────────────────────────────── */}
+        <div className="mb-2">
+          <h3 className="text-xl font-semibold text-brand-navy mb-1.5">
+            Want the full picture?
+          </h3>
+          <p className="text-sm text-brand-muted mb-6">
+            Your free preview is just the start. Choose the report that fits where you are right now.
+          </p>
 
-          {/* Purchase */}
-          <div className="p-5 bg-white border-t border-brand-border">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold text-brand-navy">{productLabel}</p>
-                <p className="text-xs text-brand-muted mt-0.5">{productMeta}</p>
+          {/* Primary package — matches their selected flow */}
+          <div className="border-2 border-brand-navy rounded-2xl overflow-hidden mb-3">
+            <div className="px-6 pt-6 pb-5">
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-2 ${primaryPackage.badgeClass}`}>
+                    {primaryPackage.badge}
+                  </span>
+                  <h4 className="text-base font-semibold text-brand-navy">{primaryPackage.label}</h4>
+                  <p className="text-xs text-brand-muted mt-0.5">{primaryPackage.tagline}</p>
+                </div>
+                <div className="text-right flex-shrink-0 ml-4">
+                  <p className="text-2xl font-semibold text-brand-navy">{primaryPackage.price}</p>
+                  <p className="text-[10px] text-brand-muted">{primaryPackage.meta}</p>
+                </div>
               </div>
-              <p className="text-2xl font-semibold text-brand-navy">{price}</p>
             </div>
 
-            {purchaseError && (
-              <div role="alert" className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-xs text-red-700">{purchaseError}</p>
-              </div>
-            )}
+            <div className="px-6 pb-5">
+              <ul className="space-y-2 mb-5">
+                {primaryPackage.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5" aria-hidden="true">
+                      <circle cx="7" cy="7" r="6.5" fill="#F0FDF4" stroke="#86EFAC" />
+                      <path d="M4 7l2 2 4-4" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="text-xs text-brand-muted leading-relaxed">{f}</span>
+                  </li>
+                ))}
+              </ul>
 
-            <button
-              onClick={() => handlePurchase(product)}
-              disabled={purchasing}
-              className="btn-primary mb-2 flex items-center justify-center gap-2"
-            >
-              {purchasing ? (
-                <>
-                  <LoadingSpinner size={16} color="white" />
-                  <span>Redirecting to checkout…</span>
-                </>
-              ) : (
-                `Get ${productLabel} — ${price}`
+              {purchaseError && (
+                <div role="alert" className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700">{purchaseError}</p>
+                </div>
               )}
-            </button>
 
-            <button
-              onClick={() => handlePurchase('bundle')}
-              disabled={purchasing}
-              className="btn-ghost text-xs"
-            >
-              + Get both reports — $42{' '}
-              <span className="text-green-600">(save $6)</span>
-            </button>
+              <button
+                onClick={() => handlePurchase(primaryPackage.product)}
+                disabled={purchasing}
+                className="btn-primary flex items-center justify-center gap-2"
+              >
+                {purchasing ? (
+                  <>
+                    <LoadingSpinner size={15} color="white" />
+                    <span>Redirecting to checkout…</span>
+                  </>
+                ) : (
+                  `Get ${primaryPackage.label} — ${primaryPackage.price}`
+                )}
+              </button>
+            </div>
+          </div>
 
-            <p className="text-[11px] text-brand-muted text-center mt-3">
-              Secure checkout powered by Stripe
-            </p>
+          {/* Bundle option */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-3 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-amber-800 mb-0.5">
+                Get both reports — {primaryPackage.label} + {secondaryPackage.label}
+              </p>
+              <p className="text-xs text-amber-700 opacity-80">
+                Prepare before you call, then evaluate every quote you receive.
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-xs text-amber-700 line-through opacity-60">$48</p>
+              <button
+                onClick={() => handlePurchase('bundle')}
+                disabled={purchasing}
+                className="text-sm font-semibold text-amber-800 hover:text-amber-900 transition-colors whitespace-nowrap"
+              >
+                $42 →
+              </button>
+            </div>
+          </div>
+
+          {/* Secondary package — the other option */}
+          <div className="bg-white border border-brand-border rounded-xl px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded mb-1 ${secondaryPackage.badgeClass}`}>
+                  {secondaryPackage.badge}
+                </span>
+                <p className="text-xs font-semibold text-brand-navy">{secondaryPackage.label}</p>
+                <p className="text-[11px] text-brand-muted mt-0.5">{secondaryPackage.tagline}</p>
+              </div>
+              <div className="text-right flex-shrink-0 ml-4">
+                <p className="text-sm font-semibold text-brand-navy mb-1">{secondaryPackage.price}</p>
+                <button
+                  onClick={() => handlePurchase(secondaryPackage.product)}
+                  disabled={purchasing}
+                  className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                >
+                  Get this instead
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+
+        <p className="text-[11px] text-brand-muted text-center mt-4">
+          Secure checkout powered by Stripe · No subscription · One-time purchase
+        </p>
       </div>
     </main>
   )

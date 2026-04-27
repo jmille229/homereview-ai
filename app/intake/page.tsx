@@ -10,7 +10,7 @@ import {
   MAX_FILES_PER_REQUEST,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
-import type { AnalyzeResponse, UploadedFile } from '@/lib/types'
+import type { AnalyzeResponse, Flow, UploadedFile } from '@/lib/types'
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac: 'HVAC', plumbing: 'Plumbing', electrical: 'Electrical',
@@ -30,13 +30,15 @@ interface LocalFile {
   name: string
   type: AllowedMime
   size: number
-  dataUrl: string  // base64 data URL (includes prefix)
+  dataUrl: string
 }
 
 export default function IntakePage() {
   const router = useRouter()
-  const { flow, category, description, zip, setDescription, setZip, setSessionId, setPreview } =
-    useSessionStore()
+  const {
+    flow, category, description, zip,
+    setFlow, setDescription, setZip, setSessionId, setPreview,
+  } = useSessionStore()
 
   const [files, setFiles] = useState<LocalFile[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
@@ -46,11 +48,10 @@ export default function IntakePage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const msgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Guard: redirect if prerequisites are missing
+  // Guard: must have a category before reaching intake
   useEffect(() => {
-    if (!flow) router.replace('/')
-    else if (!category) router.replace('/category')
-  }, [flow, category, router])
+    if (!category) router.replace('/category')
+  }, [category, router])
 
   // Cycle through processing messages while submitting
   useEffect(() => {
@@ -66,11 +67,11 @@ export default function IntakePage() {
     return () => { if (msgIntervalRef.current) clearInterval(msgIntervalRef.current) }
   }, [submitting])
 
-  if (!flow || !category) return null
+  if (!category) return null
 
   const categoryLabel = CATEGORY_LABELS[category] ?? category
 
-  // ── File handling ──────────────────────────────────────────────────────────
+  // ── File handling ────────────────────────────────────────────────────────
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
@@ -83,7 +84,6 @@ export default function IntakePage() {
     }
 
     const validated: LocalFile[] = []
-
     for (const file of selected) {
       if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
         setFileError('Only JPEG, PNG, WebP images and PDFs are accepted.')
@@ -93,19 +93,15 @@ export default function IntakePage() {
         setFileError(`"${file.name}" exceeds the 2MB limit.`)
         return
       }
-
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result as string)
         reader.onerror = () => reject(new Error('File read failed'))
         reader.readAsDataURL(file)
       })
-
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
     }
-
     setFiles((prev) => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
-    // Reset input so same file can be re-added after removal
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -113,14 +109,17 @@ export default function IntakePage() {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    if (!flow) {
+      setSubmitError('Please tell us whether you have a quote yet.')
+      return
+    }
     setSubmitError(null)
     setSubmitting(true)
     setProcessingMsg(PROCESSING_MESSAGES[0])
 
-    // Strip data URL prefix to get raw base64
     const uploadedFiles: UploadedFile[] = files.map((f) => ({
       name: f.name,
       type: f.type,
@@ -152,27 +151,56 @@ export default function IntakePage() {
     }
   }
 
-  const canSubmit = description.trim().length >= 20 && !submitting
+  const canSubmit = !!flow && description.trim().length >= 20 && !submitting
 
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar step="Step 2 of 3" onBack={() => router.push('/category')} />
 
-        {/* Header */}
-        <div className="flex items-center gap-2.5 mb-6">
+        <div className="flex items-center gap-2.5 mb-7">
           <h2 className="text-2xl font-semibold text-brand-navy">Describe the situation</h2>
-          <span className="text-[11px] font-medium px-2.5 py-1 bg-gray-100 text-brand-muted rounded-md">
+          <span className="text-[11px] font-medium px-2.5 py-1 bg-white border border-brand-border text-brand-muted rounded-lg">
             {categoryLabel}
           </span>
         </div>
 
-        {/* Description */}
+        {/* ── Pre/post question ────────────────────────────────────────────── */}
+        <div className="mb-6">
+          <p className="section-label">Have you already received a contractor quote?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { value: 'pre' as Flow, label: 'No — not yet', sub: "I haven't contacted anyone" },
+                { value: 'post' as Flow, label: 'Yes — I have one', sub: 'I want to evaluate it' },
+              ] as const
+            ).map(({ value, label, sub }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFlow(value)}
+                aria-pressed={flow === value}
+                className={`p-4 rounded-xl border text-left transition-all duration-150 ${
+                  flow === value
+                    ? 'border-brand-navy bg-white shadow-sm'
+                    : 'border-brand-border bg-white hover:border-brand-border-dark'
+                }`}
+              >
+                <p className={`text-sm font-semibold mb-0.5 ${flow === value ? 'text-brand-navy' : 'text-brand-muted'}`}>
+                  {label}
+                </p>
+                <p className="text-xs text-brand-muted">{sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Description ─────────────────────────────────────────────────── */}
         <div className="mb-4">
           <label htmlFor="description" className="section-label">
-            {flow === 'pre'
-              ? 'What\'s happening? The more detail, the better.'
-              : 'Describe the situation and what the contractor told you.'}
+            {flow === 'post'
+              ? 'Describe the situation and what the contractor told you.'
+              : "What's happening? The more detail, the better."}
           </label>
           <textarea
             id="description"
@@ -181,9 +209,9 @@ export default function IntakePage() {
             rows={6}
             maxLength={4000}
             placeholder={
-              flow === 'pre'
-                ? 'e.g. My furnace runs but shuts off after 2 minutes. The house is getting cold. Unit is 12 years old, never serviced.'
-                : 'e.g. My AC stopped cooling. A contractor quoted $3,200 for full replacement. The unit is 8 years old. Not sure if replacement is really needed.'
+              flow === 'post'
+                ? 'e.g. My AC stopped cooling. A contractor quoted $3,200 for full replacement. The unit is 8 years old. Not sure if replacement is really needed.'
+                : 'e.g. My furnace runs but shuts off after 2 minutes. The house is getting cold. Unit is 12 years old, never serviced.'
             }
             className="input resize-y leading-relaxed"
             aria-describedby="desc-count"
@@ -193,7 +221,7 @@ export default function IntakePage() {
           </p>
         </div>
 
-        {/* File upload */}
+        {/* ── File upload ──────────────────────────────────────────────────── */}
         <div className="mb-4">
           <label className="section-label">
             Upload photos or documents{' '}
@@ -210,9 +238,9 @@ export default function IntakePage() {
           >
             <p className="text-sm font-medium text-brand-navy mb-1">Tap to upload</p>
             <p className="text-xs text-brand-muted">
-              {flow === 'pre'
-                ? 'Photos, service records, appliance manuals'
-                : 'Contractor quotes, invoices, photos of the issue'}
+              {flow === 'post'
+                ? 'Contractor quotes, invoices, photos of the issue'
+                : 'Photos, service records, appliance manuals'}
             </p>
             <input
               ref={fileRef}
@@ -226,9 +254,7 @@ export default function IntakePage() {
           </button>
 
           {fileError && (
-            <p role="alert" className="text-xs text-red-600 mt-2">
-              {fileError}
-            </p>
+            <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
           )}
 
           {files.length > 0 && (
@@ -244,16 +270,14 @@ export default function IntakePage() {
                     onClick={() => removeFile(i)}
                     aria-label={`Remove ${f.name}`}
                     className="text-brand-muted hover:text-brand-navy ml-1"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Post-quote tip */}
+        {/* ── Post-quote tip ───────────────────────────────────────────────── */}
         {flow === 'post' && (
           <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
             <p className="text-xs font-semibold text-blue-700 mb-0.5">
@@ -265,7 +289,7 @@ export default function IntakePage() {
           </div>
         )}
 
-        {/* Zip code */}
+        {/* ── Zip code ────────────────────────────────────────────────────── */}
         <div className="mb-7">
           <label htmlFor="zip" className="section-label">
             Zip code{' '}
@@ -284,14 +308,14 @@ export default function IntakePage() {
           />
         </div>
 
-        {/* Error */}
+        {/* ── Error ───────────────────────────────────────────────────────── */}
         {submitError && (
           <div role="alert" className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl">
             <p className="text-xs text-red-700">{submitError}</p>
           </div>
         )}
 
-        {/* Submit */}
+        {/* ── Submit ──────────────────────────────────────────────────────── */}
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
