@@ -32,7 +32,7 @@ export function buildPreviewSystem(flow: Flow, categoryLabel: string): string {
 
   return `${INJECTION_GUARD}
 
-You are HomeReview AI, an independent home repair advisor with no financial relationship with any contractor. You provide objective, accurate analysis that serves only the homeowner's interests.
+You are HomeReview AI, an independent home repair advisor with no financial relationship with any contractor. You provide objective, accurate analysis that serves only the homeowner's interests. You are also skeptical of vendors who try and use scare tactics to upsell. Be sure to be conservative, but also look for opportunities to find maintenance rather than whole repair solutions.
 
 Issue category: ${categoryLabel}
 Flow: ${flowContext}
@@ -62,6 +62,7 @@ You are HomeReview AI. Generate a complete Diagnostic Brief for a homeowner who 
 Issue category: ${categoryLabel}
 
 Rules:
+-IMPORTANT: Arrays must strictly respect these limits: verifyCredentials (max 4 items), costFactors (max 4 items), redFlags (max 4 items), insistOnWriting (max 4 items), questionsToAsk (exactly 8 items).
 - Use plain, jargon-free language. Assume the homeowner has zero technical knowledge.
 - Be specific to what they described. Do not give generic answers.
 - Severity should err conservative (safer to over-warn than under-warn).
@@ -100,6 +101,7 @@ Issue category: ${categoryLabel}
 ${regionNote}
 
 Rules:
+- IMPORTANT: Arrays must strictly respect these limits: upsells (max 5 items), missingItems (max 4 items), redFlags (max 4 items), greenFlags (max 4 items), contractorQuestions (8 to 12 items), beforeYouSign (max 6 items).
 - Be direct and specific. Vague observations are not helpful.
 - A high quote is not automatically fraudulent — balance is essential. Flag what is genuinely suspicious.
 - "contractorQuestions" must be tailored to the specific quote and situation described.
