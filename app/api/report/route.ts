@@ -154,7 +154,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         userText,
         schema:    diagnosticBriefSchema,
         model:     'haiku',
-        maxTokens: 1500,
+        maxTokens: 2500,
       })
     } else {
       const shieldReport = await callClaude({
@@ -162,7 +162,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         userText,
         schema:    quoteShieldSchema,
         model:     'haiku',
-        maxTokens: 1500,
+        maxTokens: 2500,
       })
       report = { ...shieldReport, updates: [] }
     }
