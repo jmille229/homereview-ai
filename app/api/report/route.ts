@@ -27,7 +27,6 @@ import type {
 } from '@/lib/types'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac:        'HVAC (Heating, Cooling & Air Quality)',
@@ -153,7 +152,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         system:    buildDiagnosticBriefSystem(categoryLabel),
         userText,
         schema:    diagnosticBriefSchema,
-        model:     'haiku',
+        model:     'sonnet',
         maxTokens: 2500,
       })
     } else {
@@ -161,7 +160,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
         schema:    quoteShieldSchema,
-        model:     'haiku',
+        model:     'sonnet',
         maxTokens: 2500,
       })
       report = { ...shieldReport, updates: [] }

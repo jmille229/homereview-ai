@@ -21,39 +21,17 @@ export const ALLOWED_MIME_TYPES: AllowedMimeType[] = [
 ]
 
 export const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 // 2 MB per file
-
 export const MAX_FILES_PER_REQUEST = 3
-
-/**
- * HIGH-01: Maximum total JSON body size for requests containing file uploads.
- * 3 files × 2MB × base64 overhead (~1.37×) + JSON structure = ~9MB ceiling.
- * Checked via Content-Length before req.json() loads the body into memory.
- */
 export const MAX_BODY_BYTES = 9 * 1024 * 1024
+export const MAX_FOLLOWUP_QUESTIONS = 2  // free pre-purchase follow-up limit
 
 export const CATEGORY_IDS: CategoryId[] = [
-  'hvac',
-  'plumbing',
-  'electrical',
-  'roofing',
-  'foundation',
-  'appliances',
-  'pest',
-  'maintenance',
+  'hvac', 'plumbing', 'electrical', 'roofing',
+  'foundation', 'appliances', 'pest', 'maintenance',
 ]
 
-// ─── File schema ──────────────────────────────────────────────────────────────
+// ─── Shared sub-schemas ───────────────────────────────────────────────────────
 
-/**
- * HIGH-01: Validates uploaded files.
- *
- * Two improvements over the previous version:
- * 1. `data` is bounded by the maximum base64-encoded size of a 2MB file
- *    (2MB × 1.37 ≈ 2.74MB → ~3.7M chars), preventing oversized payloads
- *    that report a small `size` but carry a large `data` field.
- * 2. A `.refine()` cross-validates `size` against the actual `data` length
- *    so an attacker cannot claim `size: 100` while sending 10MB of base64.
- */
 const MAX_BASE64_CHARS = Math.ceil(MAX_FILE_SIZE_BYTES * 1.4)
 
 const uploadedFileSchema = z
@@ -65,14 +43,25 @@ const uploadedFileSchema = z
   })
   .refine(
     (f) => {
-      // Base64 decodes at ~0.75 bytes per char. Allow 10% tolerance for padding.
       const estimatedBytes = Math.floor(f.data.length * 0.75)
       return estimatedBytes <= MAX_FILE_SIZE_BYTES * 1.1
     },
     { message: 'File data does not match declared size.' },
   )
 
+const userAnswerSchema = z.object({
+  questionId: z.string().min(1).max(50),
+  question:   z.string().min(1).max(500),
+  answer:     z.string().min(0).max(1000),
+})
+
 // ─── API input schemas ────────────────────────────────────────────────────────
+
+export const questionsRequestSchema = z.object({
+  flow:        z.enum(['pre', 'post'] as [Flow, Flow]),
+  category:    z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]),
+  description: z.string().min(20).max(4000),
+})
 
 export const analyzeRequestSchema = z.object({
   flow: z.enum(['pre', 'post'] as [Flow, Flow]),
@@ -85,15 +74,27 @@ export const analyzeRequestSchema = z.object({
     .string()
     .regex(/^\d{5}$/, 'Please enter a valid 5-digit US zip code.')
     .or(z.literal('')),
-  files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
+  files:   z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
+  answers: z.array(userAnswerSchema).max(4),  // max 4 clarifying answers
 })
 
-/**
- * HIGH-04: Stripe Checkout Session IDs follow a known format.
- * Validating the format here prevents arbitrary strings from being passed
- * to the Stripe API, which would consume API quota and add latency with no
- * benefit to a legitimate user.
- */
+export const followupRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  question:  z.string().min(1).max(1000),
+})
+
+export const chatRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  message:   z.string().min(1).max(2000),
+  history:   z.array(
+    z.object({
+      role:      z.enum(['user', 'assistant']),
+      content:   z.string().min(1).max(4000),
+      timestamp: z.string(),
+    })
+  ).max(50),  // cap history to prevent enormous payloads
+})
+
 export const generateReportRequestSchema = z.object({
   stripeSessionId: z
     .string()
@@ -104,104 +105,75 @@ export const generateReportRequestSchema = z.object({
 })
 
 export const updateReportRequestSchema = z.object({
-  sessionId: z.string().uuid(),
+  sessionId:  z.string().uuid(),
   updateType: z.enum([
-    'new_quote',
-    'revised_quote',
-    'contract',
-    'invoice',
-    'note',
-    'photo',
+    'new_quote', 'revised_quote', 'contract', 'invoice', 'note', 'photo',
   ] as [UpdateType, ...UpdateType[]]),
   files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
-  note: z.string().max(2000).optional(),
+  note:  z.string().max(2000).optional(),
 })
 
 export const checkoutRequestSchema = z.object({
   sessionId: z.string().uuid(),
-  product: z.enum(['brief', 'shield', 'bundle'] as [Product, Product, Product]),
+  product:   z.enum(['brief', 'shield', 'bundle'] as [Product, Product, Product]),
 })
 
-// ─── AI output schemas (Zod validates every Claude response) ──────────────────
+// ─── AI output schemas ────────────────────────────────────────────────────────
+
+export const questionsResultSchema = z.object({
+  questions: z.array(
+    z.object({
+      id:       z.string().min(1),
+      question: z.string().min(10).max(300),
+    })
+  ).min(2).max(4),
+})
 
 export const previewResultSchema = z.object({
-  summary: z.string().min(10),
-  severity: z.enum(['Minor', 'Moderate', 'Serious', 'Urgent'] as [
-    Severity,
-    Severity,
-    Severity,
-    Severity,
-  ]),
+  summary:        z.string().min(10),
+  severity:       z.enum(['Minor', 'Moderate', 'Serious', 'Urgent'] as [Severity, Severity, Severity, Severity]),
   severityReason: z.string().min(10),
-  costMin: z.number().int().positive(),
-  costMax: z.number().int().positive(),
-  keyInsight: z.string().min(10),
+  costMin:        z.number().int().positive(),
+  costMax:        z.number().int().positive(),
+  keyInsight:     z.string().min(10),
+})
+
+export const followupResultSchema = z.object({
+  answer: z.string().min(10).max(1500),
+})
+
+export const chatResultSchema = z.object({
+  reply: z.string().min(1).max(2000),
 })
 
 export const diagnosticBriefSchema = z.object({
-  diagnosis: z.string().min(20),
-  urgencyTimeline: z.string().min(10),
-  diyFeasibility: z.enum(['None', 'Low', 'Medium', 'High'] as [
-    DiyFeasibility,
-    DiyFeasibility,
-    DiyFeasibility,
-    DiyFeasibility,
-  ]),
-  diyDetails: z.string().min(10),
-  contractorType: z.string().min(5),
-  licenseRequired: z.string().min(5),
+  diagnosis:         z.string().min(20),
+  urgencyTimeline:   z.string().min(10),
+  diyFeasibility:    z.enum(['None', 'Low', 'Medium', 'High'] as [DiyFeasibility, DiyFeasibility, DiyFeasibility, DiyFeasibility]),
+  diyDetails:        z.string().min(10),
+  contractorType:    z.string().min(5),
+  licenseRequired:   z.string().min(5),
   verifyCredentials: z.array(z.string().min(5)).min(1).max(6),
-  costFactors: z.array(z.string().min(5)).min(2).max(6),
-  questionsToAsk: z
-    .array(
-      z.object({
-        question: z.string().min(5),
-        whyItMatters: z.string().min(10),
-      }),
-    )
-    .min(6)
-    .max(10),
-  redFlags: z.array(z.string().min(5)).min(2).max(6),
-  insistOnWriting: z.array(z.string().min(5)).min(2).max(6),
+  costFactors:       z.array(z.string().min(5)).min(2).max(6),
+  questionsToAsk:    z.array(z.object({ question: z.string().min(5), whyItMatters: z.string().min(10) })).min(6).max(10),
+  redFlags:          z.array(z.string().min(5)).min(2).max(6),
+  insistOnWriting:   z.array(z.string().min(5)).min(2).max(6),
 })
 
 export const quoteShieldSchema = z.object({
-  scopeVerdict: z.enum([
-    'Matches Problem',
-    'Partial Match',
-    'Scope Mismatch',
-  ] as [ScopeVerdict, ScopeVerdict, ScopeVerdict]),
-  scopeAnalysis: z.string().min(20),
-  pricingVerdict: z.enum(['Fair', 'High End', 'Inflated'] as [
-    PricingVerdict,
-    PricingVerdict,
-    PricingVerdict,
-  ]),
-  pricingAnalysis: z.string().min(20),
-  estimatedFairMin: z.number().int().positive(),
-  estimatedFairMax: z.number().int().positive(),
-  upsells: z.array(
-    z.object({
-      item: z.string().min(1),
-      amount: z.number().int().min(0),
-      reason: z.string().min(10),
-    }),
-  ),
-  missingItems: z.array(z.string().min(5)),
-  redFlags: z.array(z.string().min(5)),
-  greenFlags: z.array(z.string().min(5)),
-  negotiationGuide: z.string().min(20),
-  contractorQuestions: z
-    .array(
-      z.object({
-        question: z.string().min(5),
-        goodAnswer: z.string().min(5),
-        concerningAnswer: z.string().min(5),
-      }),
-    )
-    .min(4)
-    .max(14),
-  getSecondQuote: z.boolean(),
-  secondQuoteReason: z.string().min(10),
-  beforeYouSign: z.array(z.string().min(5)).min(3).max(8),
+  scopeVerdict:        z.enum(['Matches Problem', 'Partial Match', 'Scope Mismatch'] as [ScopeVerdict, ScopeVerdict, ScopeVerdict]),
+  scopeAnalysis:       z.string().min(20),
+  pricingVerdict:      z.enum(['Fair', 'High End', 'Inflated'] as [PricingVerdict, PricingVerdict, PricingVerdict]),
+  pricingAnalysis:     z.string().min(20),
+  estimatedFairMin:    z.number().int().positive(),
+  estimatedFairMax:    z.number().int().positive(),
+  upsells:             z.array(z.object({ item: z.string().min(1), amount: z.number().int().min(0), reason: z.string().min(10) })),
+  missingItems:        z.array(z.string().min(5)),
+  redFlags:            z.array(z.string().min(5)),
+  greenFlags:          z.array(z.string().min(5)),
+  negotiationGuide:    z.string().min(20),
+  contractorQuestions: z.array(z.object({ question: z.string().min(5), goodAnswer: z.string().min(5), concerningAnswer: z.string().min(5) })).min(4).max(14),
+  getSecondQuote:      z.boolean(),
+  secondQuoteReason:   z.string().min(10),
+  beforeYouSign:       z.array(z.string().min(5)).min(3).max(8),
 })

@@ -46,9 +46,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // ── Parse and validate ─────────────────────────────────────────────────────
   let body: unknown
-  try {
-    body = await req.json()
-  } catch {
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
@@ -65,24 +63,32 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { flow, category, description, zip, files } = data
-  const categoryLabel      = CATEGORY_LABELS[category] ?? category
-  const sanitizedDesc      = sanitizeInput(description)
+  const { flow, category, description, zip, files, answers } = data
+  const categoryLabel = CATEGORY_LABELS[category] ?? category
+  const sanitizedDesc = sanitizeInput(description)
+
+  // ── Build user text — include clarifying answers if provided ───────────────
+  const answersContext = answers.length > 0
+    ? '\n\nClarifying answers from homeowner:\n' +
+      answers
+        .map(a => `Q: ${a.question}\nA: ${sanitizeInput(a.answer, 500)}`)
+        .join('\n\n')
+    : ''
+
+  const userText = `Issue description: ${sanitizedDesc}${answersContext}\nZip code: ${zip || 'Not provided'}`
 
   // ── Call Claude (Haiku for preview speed) ─────────────────────────────────
   let preview: ReturnType<typeof previewResultSchema.parse>
   try {
     preview = await callClaude({
       system:    buildPreviewSystem(flow, categoryLabel),
-      userText:  `Issue description: ${sanitizedDesc}\nZip code: ${zip || 'Not provided'}`,
+      userText,
       files,
       schema:    previewResultSchema,
       model:     'haiku',
       maxTokens: 600,
     })
   } catch (err) {
-    // LOW-02: Log only message and code — never the full error object which
-    // may contain request context or SDK internals with sensitive data.
     console.error('[analyze] Claude call failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',
     })
@@ -98,15 +104,19 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     await createSession({
-      id:          sessionId,
+      id:               sessionId,
       flow,
       category,
-      description: sanitizedDesc,
+      description:      sanitizedDesc,
       zip,
+      answers:          answers ?? [],
       preview,
-      paid:        false,
-      createdAt:   now,
-      updatedAt:   now,
+      paid:             false,
+      followupCount:    0,
+      followupMessages: [],
+      chatMessages:     [],
+      createdAt:        now,
+      updatedAt:        now,
     })
   } catch (err) {
     console.error('[analyze] Redis write failed:', {

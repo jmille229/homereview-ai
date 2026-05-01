@@ -28,7 +28,7 @@ export default function CategoryPage() {
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 1 of 3" onBack={() => router.push('/')} />
+        <NavBar step="Step 1 of 4" onBack={() => router.push('/')} />
 
         <h2 className="text-2xl font-semibold text-brand-navy mb-1.5">
           What area of your home?

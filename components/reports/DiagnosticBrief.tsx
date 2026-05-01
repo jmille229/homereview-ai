@@ -1,11 +1,16 @@
 'use client'
 
 import { NavBar } from '@/components/ui/NavBar'
-import type { DiagnosticBriefReport } from '@/lib/types'
+import { ChatInterface } from '@/components/ui/ChatInterface'
+import type { ChatMessage, DiagnosticBriefReport } from '@/lib/types'
 
 interface Props {
   report: DiagnosticBriefReport
   categoryLabel: string
+  sessionId: string
+  product: string
+  paidAt: string
+  initialChatMessages: ChatMessage[]
 }
 
 const DIY_CONFIG: Record<string, { bg: string; text: string }> = {
@@ -40,7 +45,7 @@ function BulletList({ items, color = 'bg-brand-amber' }: { items: string[]; colo
   )
 }
 
-export function DiagnosticBrief({ report, categoryLabel }: Props) {
+export function DiagnosticBrief({ report, categoryLabel, sessionId, product, paidAt, initialChatMessages }: Props) {
   const diy = DIY_CONFIG[report.diyFeasibility] ?? DIY_CONFIG.Medium
 
   const handlePrint = () => window.print()
@@ -161,6 +166,16 @@ export function DiagnosticBrief({ report, categoryLabel }: Props) {
               ))}
             </ul>
           </div>
+        </div>
+
+        {/* Post-purchase chat */}
+        <div className="card mt-4">
+          <ChatInterface
+            sessionId={sessionId}
+            product={product}
+            paidAt={paidAt}
+            initialMessages={initialChatMessages}
+          />
         </div>
 
         {/* Disclaimer */}

@@ -10,19 +10,14 @@ import {
   MAX_FILES_PER_REQUEST,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
-import type { AnalyzeResponse, Flow, UploadedFile } from '@/lib/types'
+import type { Flow, UploadedFile } from '@/lib/types'
+import { savePendingFiles } from '@/lib/pendingFiles'
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac: 'HVAC', plumbing: 'Plumbing', electrical: 'Electrical',
   roofing: 'Roofing & Exterior', foundation: 'Foundation & Structure',
   appliances: 'Appliances', pest: 'Pest & Mold', maintenance: 'General Maintenance',
 }
-
-const PROCESSING_MESSAGES = [
-  'Analyzing your issue…',
-  'Checking regional cost data…',
-  'Preparing your free preview…',
-]
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -37,35 +32,19 @@ export default function IntakePage() {
   const router = useRouter()
   const {
     flow, category, description, zip,
-    setFlow, setDescription, setZip, setSessionId, setPreview,
+    setFlow, setDescription, setZip, setQuestions,
   } = useSessionStore()
 
-  const [files, setFiles] = useState<LocalFile[]>([])
+  const [files, setFiles]         = useState<LocalFile[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [processingMsg, setProcessingMsg] = useState(PROCESSING_MESSAGES[0])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const msgIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Guard: must have a category before reaching intake
   useEffect(() => {
     if (!category) router.replace('/category')
   }, [category, router])
-
-  // Cycle through processing messages while submitting
-  useEffect(() => {
-    if (submitting) {
-      let i = 0
-      msgIntervalRef.current = setInterval(() => {
-        i = (i + 1) % PROCESSING_MESSAGES.length
-        setProcessingMsg(PROCESSING_MESSAGES[i])
-      }, 2000)
-    } else {
-      if (msgIntervalRef.current) clearInterval(msgIntervalRef.current)
-    }
-    return () => { if (msgIntervalRef.current) clearInterval(msgIntervalRef.current) }
-  }, [submitting])
 
   if (!category) return null
 
@@ -101,15 +80,15 @@ export default function IntakePage() {
       })
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
     }
-    setFiles((prev) => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
+    setFiles(prev => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
     if (fileRef.current) fileRef.current.value = ''
   }
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
+    setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  // ── Submit — routes to questions page ────────────────────────────────────
 
   const handleSubmit = async () => {
     if (!flow) {
@@ -118,37 +97,20 @@ export default function IntakePage() {
     }
     setSubmitError(null)
     setSubmitting(true)
-    setProcessingMsg(PROCESSING_MESSAGES[0])
 
-    const uploadedFiles: UploadedFile[] = files.map((f) => ({
+    // Save files to sessionStorage so the questions page can access them
+    const uploadedFiles: UploadedFile[] = files.map(f => ({
       name: f.name,
       type: f.type,
       size: f.size,
       data: f.dataUrl.split(',')[1] ?? '',
     }))
+    savePendingFiles(uploadedFiles)
 
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flow, category, description, zip, files: uploadedFiles }),
-      })
+    // Clear any stale questions from a previous session
+    setQuestions([])
 
-      const json: AnalyzeResponse | { error: string } = await res.json()
-
-      if (!res.ok || 'error' in json) {
-        setSubmitError(('error' in json ? json.error : null) ?? 'Something went wrong. Please try again.')
-        setSubmitting(false)
-        return
-      }
-
-      setSessionId(json.sessionId)
-      setPreview(json.preview)
-      router.push('/preview')
-    } catch {
-      setSubmitError('Network error. Please check your connection and try again.')
-      setSubmitting(false)
-    }
+    router.push('/questions')
   }
 
   const canSubmit = !!flow && description.trim().length >= 20 && !submitting
@@ -156,7 +118,7 @@ export default function IntakePage() {
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 2 of 3" onBack={() => router.push('/category')} />
+        <NavBar step="Step 2 of 4" onBack={() => router.push('/category')} />
 
         <div className="flex items-center gap-2.5 mb-7">
           <h2 className="text-2xl font-semibold text-brand-navy">Describe the situation</h2>
@@ -171,7 +133,7 @@ export default function IntakePage() {
           <div className="grid grid-cols-2 gap-2">
             {(
               [
-                { value: 'pre' as Flow, label: 'No — not yet', sub: "I haven't contacted anyone" },
+                { value: 'pre' as Flow, label: 'No — not yet',    sub: "I haven't contacted anyone" },
                 { value: 'post' as Flow, label: 'Yes — I have one', sub: 'I want to evaluate it' },
               ] as const
             ).map(({ value, label, sub }) => (
@@ -205,7 +167,7 @@ export default function IntakePage() {
           <textarea
             id="description"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={e => setDescription(e.target.value)}
             rows={6}
             maxLength={4000}
             placeholder={
@@ -300,7 +262,7 @@ export default function IntakePage() {
             type="text"
             inputMode="numeric"
             value={zip}
-            onChange={(e) => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
+            onChange={e => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
             placeholder="e.g. 19004"
             maxLength={5}
             className="input"
@@ -308,30 +270,25 @@ export default function IntakePage() {
           />
         </div>
 
-        {/* ── Error ───────────────────────────────────────────────────────── */}
         {submitError && (
           <div role="alert" className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl">
             <p className="text-xs text-red-700">{submitError}</p>
           </div>
         )}
 
-        {/* ── Submit ──────────────────────────────────────────────────────── */}
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
           className="btn-primary mb-2 flex items-center justify-center gap-2"
         >
           {submitting ? (
-            <>
-              <LoadingSpinner size={16} color="white" />
-              <span>{processingMsg}</span>
-            </>
+            <><LoadingSpinner size={16} color="white" /><span>Continuing…</span></>
           ) : (
-            'Get My Free Preview →'
+            'Continue →'
           )}
         </button>
         <p className="text-xs text-brand-muted text-center">
-          Takes about 30 seconds · Free, no payment required
+          We&apos;ll ask a couple of quick questions next · Free, no payment required
         </p>
       </div>
     </main>

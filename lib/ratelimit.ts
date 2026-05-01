@@ -7,7 +7,7 @@ import { redis } from './redis'
  */
 export const previewLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, '1 h'),
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
   analytics: false,
   prefix: 'hr:preview',
 })
@@ -32,6 +32,21 @@ export const checkoutLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(10, '1 h'),
   analytics: false,
   prefix: 'hr:checkout',
+})
+
+/**
+ * Chat endpoint: 200 requests per IP per day.
+ *
+ * Chat is sold as "unlimited" — this limit exists only to prevent automated
+ * abuse (bots, scripted crawlers). A genuine user having an active conversation
+ * will not hit 200 messages in a day. Using a separate limiter ensures that
+ * chat usage never eats into the report generation quota.
+ */
+export const chatLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(200, '1 d'),
+  analytics: false,
+  prefix: 'hr:chat',
 })
 
 /**

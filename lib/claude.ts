@@ -2,15 +2,23 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { ZodSchema } from 'zod'
 import type { UploadedFile } from './types'
 
+// ─── Singleton client (server-side only) ──────────────────────────────────────
+
 if (!process.env.ANTHROPIC_API_KEY) {
   throw new Error('ANTHROPIC_API_KEY environment variable is not set.')
 }
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
+// ─── Model routing ────────────────────────────────────────────────────────────
 
 const HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 const SONNET_MODEL = 'claude-sonnet-4-6'
 const TIMEOUT_MS   = 55_000
+
+// ─── Content block helpers ────────────────────────────────────────────────────
 
 function buildFileContentBlocks(files: UploadedFile[]): unknown[] {
   return files.map((f) => {
@@ -27,6 +35,8 @@ function buildFileContentBlocks(files: UploadedFile[]): unknown[] {
   })
 }
 
+// ─── JSON extraction ──────────────────────────────────────────────────────────
+
 function extractJson(text: string): unknown {
   const trimmed = text.trim()
   try { return JSON.parse(trimmed) } catch { /* fall through */ }
@@ -40,6 +50,8 @@ function extractJson(text: string): unknown {
   throw new Error('No valid JSON found in model response')
 }
 
+// ─── Single-turn call (JSON output required) ──────────────────────────────────
+
 interface CallClaudeOptions<T> {
   system: string
   userText: string
@@ -50,6 +62,11 @@ interface CallClaudeOptions<T> {
   retries?: number
 }
 
+/**
+ * Makes a single-turn Anthropic API call and validates the JSON response.
+ * Retries once on schema validation failure with a stricter prompt.
+ * Aborts after TIMEOUT_MS to prevent serverless function overruns.
+ */
 export async function callClaude<T>({
   system,
   userText,
@@ -61,7 +78,6 @@ export async function callClaude<T>({
 }: CallClaudeOptions<T>): Promise<T> {
   const modelId = model === 'haiku' ? HAIKU_MODEL : SONNET_MODEL
 
-  // Cast to any[] to work around SDK type definitions not including document blocks
   const userContent = [
     ...buildFileContentBlocks(files),
     { type: 'text', text: userText },
@@ -80,8 +96,12 @@ export async function callClaude<T>({
     let response: Anthropic.Message
     try {
       response = await anthropic.messages.create(
-        { model: modelId, max_tokens: maxTokens, system: finalSystem,
-          messages: [{ role: 'user', content: userContent }] },
+        {
+          model:      modelId,
+          max_tokens: maxTokens,
+          system:     finalSystem,
+          messages:   [{ role: 'user', content: userContent }],
+        },
         { signal: controller.signal },
       )
     } catch (err) {
@@ -110,7 +130,7 @@ export async function callClaude<T>({
     const validation = schema.safeParse(parsed)
     if (!validation.success) {
       lastError = new Error(
-        `Schema validation failed: ${validation.error.issues.map((i) => i.message).join(', ')}`
+        `Schema validation failed: ${validation.error.issues.map((i) => i.message).join(', ')}`,
       )
       continue
     }
@@ -119,4 +139,66 @@ export async function callClaude<T>({
   }
 
   throw lastError ?? new Error('Claude call failed after retries')
+}
+
+// ─── Multi-turn conversational call ───────────────────────────────────────────
+
+export interface ConversationMessage {
+  role:    'user' | 'assistant'
+  content: string
+}
+
+interface CallClaudeConversationOptions {
+  system:   string
+  history:  ConversationMessage[]  // prior turns, in order
+  message:  string                 // the new user message
+  model?:   'haiku' | 'sonnet'
+  maxTokens?: number
+}
+
+/**
+ * Makes a multi-turn Anthropic API call for conversational features (chat).
+ * Unlike callClaude, this does NOT require JSON output — it returns raw text.
+ * History is included as prior Anthropic message turns so Claude has full
+ * conversational context.
+ */
+export async function callClaudeConversation({
+  system,
+  history,
+  message,
+  model     = 'haiku',
+  maxTokens = 600,
+}: CallClaudeConversationOptions): Promise<string> {
+  const modelId = model === 'haiku' ? HAIKU_MODEL : SONNET_MODEL
+
+  // Build the full message array: prior history + new user message
+  const messages: Anthropic.MessageParam[] = [
+    ...history.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ]
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+  let response: Anthropic.Message
+  try {
+    response = await anthropic.messages.create(
+      { model: modelId, max_tokens: maxTokens, system, messages },
+      { signal: controller.signal },
+    )
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Chat API timed out after ${TIMEOUT_MS / 1000}s`)
+    }
+    throw err instanceof Error ? err : new Error('Anthropic API error')
+  } finally {
+    clearTimeout(timer)
+  }
+
+  const textBlock = response.content.find((b) => b.type === 'text')
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('No text block in chat response')
+  }
+
+  return textBlock.text.trim()
 }

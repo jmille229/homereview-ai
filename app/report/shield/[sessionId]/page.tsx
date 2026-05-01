@@ -1,4 +1,3 @@
-
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/redis'
 import { QuoteShield } from '@/components/reports/QuoteShield'
@@ -8,9 +7,9 @@ interface Props {
   params: { sessionId: string }
 }
 
-export const dynamic = 'force-dynamic'
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export const dynamic = 'force-dynamic'
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac: 'HVAC', plumbing: 'Plumbing', electrical: 'Electrical',
@@ -23,16 +22,15 @@ export default async function ShieldReportPage({ params }: Props) {
 
   const session = await getSession(params.sessionId)
 
-  if (!session) redirect('/')
-  if (!session.paid) redirect('/preview')
+  if (!session)               redirect('/')
+  if (!session.paid)          redirect('/preview')
   if (session.flow !== 'post') redirect('/')
-  if (!session.report) redirect('/preview')
+  if (!session.report)        redirect('/preview')
 
-  // Check 60-day window for update eligibility
-  const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000
-  const paidAt = session.paidAt ?? session.createdAt
-  const updatesExpired = Date.now() - new Date(paidAt).getTime() > sixtyDaysMs
-  const daysRemaining = updatesExpired
+  const sixtyDaysMs  = 60 * 24 * 60 * 60 * 1000
+  const paidAt       = session.paidAt ?? session.createdAt
+  const updatesExpired  = Date.now() - new Date(paidAt).getTime() > sixtyDaysMs
+  const daysRemaining   = updatesExpired
     ? 0
     : Math.ceil((new Date(paidAt).getTime() + sixtyDaysMs - Date.now()) / (1000 * 60 * 60 * 24))
 
@@ -45,6 +43,8 @@ export default async function ShieldReportPage({ params }: Props) {
       createdAt={session.createdAt}
       daysRemaining={daysRemaining}
       updatesExpired={updatesExpired}
+      product={session.product ?? 'shield'}
+      initialChatMessages={session.chatMessages ?? []}
     />
   )
 }

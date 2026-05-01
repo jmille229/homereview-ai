@@ -33,6 +33,33 @@ export interface UploadedFile {
   data: string   // base64 encoded (no data URL prefix)
 }
 
+// ─── Clarifying questions (Step 3 of the intake flow) ────────────────────────
+
+export interface AiQuestion {
+  id: string       // stable identifier for pairing with answers
+  question: string
+}
+
+export interface UserAnswer {
+  questionId: string
+  question: string  // stored alongside for prompt context
+  answer: string
+}
+
+// ─── Conversational features ──────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+export interface FollowupMessage {
+  question: string
+  answer: string
+  timestamp: string
+}
+
 // ─── AI response shapes ───────────────────────────────────────────────────────
 
 export interface PreviewResult {
@@ -104,16 +131,33 @@ export interface StoredSession {
   category: CategoryId
   description: string
   zip: string
+  answers: UserAnswer[]          // clarifying question answers
   preview: PreviewResult
   paid: boolean
   paidAt?: string
   product?: Product
   report?: DiagnosticBriefReport | QuoteShieldReport
+  // Pre-purchase follow-up Q&A (max 2 free)
+  followupCount: number
+  followupMessages: FollowupMessage[]
+  // Post-purchase chat
+  chatMessages: ChatMessage[]
+  chatExpiresAt?: string
   createdAt: string
   updatedAt: string
 }
 
 // ─── API request / response shapes ───────────────────────────────────────────
+
+export interface QuestionsRequest {
+  flow: Flow
+  category: CategoryId
+  description: string
+}
+
+export interface QuestionsResponse {
+  questions: AiQuestion[]
+}
 
 export interface AnalyzeRequest {
   flow: Flow
@@ -121,11 +165,32 @@ export interface AnalyzeRequest {
   description: string
   zip: string
   files: UploadedFile[]
+  answers: UserAnswer[]   // clarifying answers included in analysis context
 }
 
 export interface AnalyzeResponse {
   sessionId: string
   preview: PreviewResult
+}
+
+export interface FollowupRequest {
+  sessionId: string
+  question: string
+}
+
+export interface FollowupResponse {
+  answer: string
+  questionsRemaining: number
+}
+
+export interface ChatRequest {
+  sessionId: string
+  message: string
+  history: ChatMessage[]
+}
+
+export interface ChatResponse {
+  reply: string
 }
 
 export interface GenerateReportRequest {

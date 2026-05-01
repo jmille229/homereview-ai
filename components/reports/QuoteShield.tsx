@@ -2,9 +2,11 @@
 
 import { useRef, useState } from 'react'
 import { NavBar } from '@/components/ui/NavBar'
+import { ChatInterface } from '@/components/ui/ChatInterface'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
 import type {
+  ChatMessage,
   QuoteShieldReport,
   UpdateReportResponse,
   UploadedFile,
@@ -21,6 +23,8 @@ interface Props {
   createdAt: string
   daysRemaining: number
   updatesExpired: boolean
+  product: string
+  initialChatMessages: ChatMessage[]
 }
 
 // ─── Sub-types ────────────────────────────────────────────────────────────────
@@ -107,6 +111,8 @@ export function QuoteShield({
   paidAt,
   daysRemaining,
   updatesExpired,
+  product,
+  initialChatMessages,
 }: Props) {
   const [report, setReport] = useState<QuoteShieldReport>(initialReport)
   const [tab, setTab] = useState<Tab>('report')
