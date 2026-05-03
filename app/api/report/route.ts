@@ -26,7 +26,8 @@ import type {
   UpdateReportResponse,
 } from '@/lib/types'
 
-export const runtime = 'nodejs'
+export const runtime    = 'nodejs'
+export const maxDuration = 60  // Vercel Pro max — required for AI report generation
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac:        'HVAC (Heating, Cooling & Air Quality)',
@@ -142,8 +143,24 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // ── Generate report ────────────────────────────────────────────────────────
   const categoryLabel = CATEGORY_LABELS[session.category] ?? session.category
-  const userText      = `Issue description: ${session.description}\nZip code: ${session.zip || 'Not provided'}`
 
+  // Include clarifying question answers so the full report benefits from the
+  // same context refinement that was applied to the free preview.
+  const answersContext = (session.answers ?? []).length > 0
+    ? '\n\nClarifying answers provided by homeowner:\n' +
+      (session.answers ?? [])
+        .map((a: { question: string; answer: string }) => `Q: ${a.question}\nA: ${a.answer}`)
+        .join('\n\n')
+    : ''
+
+  const userText = `Issue description: ${session.description}${answersContext}\nZip code: ${session.zip || 'Not provided'}`
+
+  // Model choice: Haiku is used here deliberately.
+  // Sonnet produces marginally higher quality output but has consistently
+  // exceeded the 60-second Vercel Pro function timeout in this environment
+  // due to cold start overhead. Haiku completes in 10-20 seconds and produces
+  // output that fully satisfies the Zod schema at 2500 tokens.
+  // The correct long-term solution is streaming (Phase 2).
   let report: DiagnosticBriefReport | QuoteShieldReport
 
   try {
@@ -152,7 +169,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         system:    buildDiagnosticBriefSystem(categoryLabel),
         userText,
         schema:    diagnosticBriefSchema,
-        model:     'sonnet',
+        model:     'haiku',
         maxTokens: 2500,
       })
     } else {
@@ -160,7 +177,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
         schema:    quoteShieldSchema,
-        model:     'sonnet',
+        model:     'haiku',
         maxTokens: 2500,
       })
       report = { ...shieldReport, updates: [] }
