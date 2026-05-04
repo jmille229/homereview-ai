@@ -125,6 +125,15 @@ export type UpdateType =
 
 // ─── Session (stored in Redis) ────────────────────────────────────────────────
 
+/**
+ * Report generation lifecycle:
+ *   undefined  → session created before payment (preview stage)
+ *   'generating' → payment verified, waitUntil running generation
+ *   'complete'   → report saved to Redis, ready to view
+ *   'failed'     → generation failed, user should contact support
+ */
+export type ReportStatus = 'generating' | 'complete' | 'failed'
+
 export interface StoredSession {
   id: string
   flow: Flow
@@ -136,7 +145,9 @@ export interface StoredSession {
   paid: boolean
   paidAt?: string
   product?: Product
+  reportStatus?: ReportStatus    // async generation lifecycle
   report?: DiagnosticBriefReport | QuoteShieldReport
+  reportError?: string           // populated on 'failed' status
   // Pre-purchase follow-up Q&A (max 2 free)
   followupCount: number
   followupMessages: FollowupMessage[]
@@ -198,8 +209,17 @@ export interface GenerateReportRequest {
 }
 
 export interface GenerateReportResponse {
+  status: 'generating'
   sessionId: string
   product: Product
+}
+
+export interface ReportStatusResponse {
+  status: ReportStatus
+  /** Populated when status === 'complete'. The path to navigate to. */
+  reportPath?: string
+  /** Populated when status === 'failed'. */
+  error?: string
 }
 
 export interface UpdateReportRequest {
