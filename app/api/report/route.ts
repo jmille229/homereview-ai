@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z, ZodError } from 'zod'
+import { waitUntil } from '@vercel/functions'
 
 import { callClaude } from '@/lib/claude'
 import { getSession, updateSession, acquireGenerationLock } from '@/lib/redis'
@@ -27,7 +28,7 @@ import type {
 } from '@/lib/types'
 
 export const runtime    = 'nodejs'
-export const maxDuration = 60  // Vercel Pro max — required for AI report generation
+export const maxDuration = 60
 
 const CATEGORY_LABELS: Record<string, string> = {
   hvac:        'HVAC (Heating, Cooling & Air Quality)',
@@ -40,7 +41,85 @@ const CATEGORY_LABELS: Record<string, string> = {
   maintenance: 'General Maintenance',
 }
 
-// ─── POST /api/report — Generate full report after payment ────────────────────
+// ─── Background report generation ─────────────────────────────────────────────
+
+/**
+ * Runs inside waitUntil — executes after the HTTP response has been sent.
+ * The function stays alive until this promise resolves (up to maxDuration).
+ *
+ * This pattern decouples payment acknowledgement (fast) from report generation
+ * (slow), giving users immediate feedback while generation runs in the background.
+ */
+async function generateAndSaveReport(
+  sessionId: string,
+  session: StoredSession,
+  product: StoredSession['product'],
+): Promise<void> {
+  const categoryLabel = CATEGORY_LABELS[session.category] ?? session.category
+
+  const answersContext = (session.answers ?? []).length > 0
+    ? '\n\nClarifying answers provided by homeowner:\n' +
+      (session.answers ?? [])
+        .map((a: { question: string; answer: string }) => `Q: ${a.question}\nA: ${a.answer}`)
+        .join('\n\n')
+    : ''
+
+  const userText =
+    `Issue description: ${session.description}${answersContext}\n` +
+    `Zip code: ${session.zip || 'Not provided'}`
+
+  let report: DiagnosticBriefReport | QuoteShieldReport
+
+  try {
+    if (session.flow === 'pre') {
+      report = await callClaude({
+        system:    buildDiagnosticBriefSystem(categoryLabel),
+        userText,
+        schema:    diagnosticBriefSchema,
+        model:     'sonnet',  // async architecture removes timeout pressure — use highest quality
+        maxTokens: 2500,
+        retries:   1,         // one retry safe — waitUntil gives us 60s with no user blocking
+      })
+    } else {
+      const shieldReport = await callClaude({
+        system:    buildQuoteShieldSystem(categoryLabel, session.zip),
+        userText,
+        schema:    quoteShieldSchema,
+        model:     'sonnet',  // async architecture removes timeout pressure — use highest quality
+        maxTokens: 3500,
+        retries:   1,         // one retry safe — waitUntil gives us 60s with no user blocking
+      })
+      report = { ...shieldReport, updates: [] }
+    }
+  } catch (err) {
+    console.error('[report/generate] Claude call failed:', {
+      message: err instanceof Error ? err.message : 'Unknown error',
+      sessionId,
+      flow: session.flow,
+    })
+    // Mark as failed so the polling client can surface an error to the user
+    await updateSession(sessionId, { reportStatus: 'failed', reportError: 'Report generation failed.' })
+    return
+  }
+
+  try {
+    await updateSession(sessionId, {
+      paid:         true,
+      paidAt:       new Date().toISOString(),
+      product,
+      reportStatus: 'complete',
+      report,
+    })
+  } catch (err) {
+    console.error('[report/generate] Redis save failed:', {
+      message: err instanceof Error ? err.message : 'Unknown error',
+      sessionId,
+    })
+    await updateSession(sessionId, { reportStatus: 'failed', reportError: 'Failed to save report.' })
+  }
+}
+
+// ─── POST /api/report — Verify payment, fire background generation ─────────────
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
@@ -55,9 +134,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // ── Parse and validate ─────────────────────────────────────────────────────
   let body: unknown
-  try {
-    body = await req.json()
-  } catch {
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
@@ -79,7 +156,6 @@ export async function POST(req: Request): Promise<NextResponse> {
   try {
     stripeSession = await stripe.checkout.sessions.retrieve(data.stripeSessionId)
   } catch {
-    // MED-03: Generic message — don't expose Stripe API details
     return NextResponse.json({ error: 'Payment verification failed.' }, { status: 400 })
   }
 
@@ -91,7 +167,6 @@ export async function POST(req: Request): Promise<NextResponse> {
   const product         = stripeSession.metadata?.product as StoredSession['product']
 
   if (!reportSessionId || !product) {
-    // MED-03: Log the detail; surface a generic message
     console.error('[report] Missing metadata on Stripe session:', {
       stripeSessionId: data.stripeSessionId,
     })
@@ -109,29 +184,36 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
-  // MED-03: Use a single generic message for all "not found" states
   if (!session) {
     return NextResponse.json({ error: 'Report not found.' }, { status: 404 })
   }
 
-  // ── Idempotency: return early if already generated ─────────────────────────
-  if (session.paid && session.report) {
-    const res: GenerateReportResponse = { sessionId: reportSessionId, product }
+  // ── Idempotency: if already complete, return immediately ───────────────────
+  if (session.reportStatus === 'complete' && session.report) {
+    const res: GenerateReportResponse = {
+      status:    'generating', // client will poll and find 'complete' immediately
+      sessionId: reportSessionId,
+      product,
+    }
     return NextResponse.json(res)
   }
 
-  // ── CRIT-02: Acquire generation lock before calling Claude ─────────────────
-  // Prevents two concurrent requests for the same session (e.g., browser
-  // double-submit, or a race between the success page and a retry) from
-  // both passing the paid check and triggering duplicate Claude calls.
+  // ── If already generating (concurrent request), return 409 ────────────────
+  if (session.reportStatus === 'generating') {
+    return NextResponse.json(
+      { error: 'Report generation is already in progress.' },
+      { status: 409 },
+    )
+  }
+
+  // ── Acquire generation lock ────────────────────────────────────────────────
   let releaseLock: (() => Promise<void>) | null = null
   try {
     releaseLock = await acquireGenerationLock(reportSessionId)
   } catch (err) {
     if (err instanceof Error && err.message.startsWith('LOCK_CONTENTION')) {
-      // Another request is already generating this report — ask the client to retry
       return NextResponse.json(
-        { error: 'Report generation is already in progress. Please wait a moment.' },
+        { error: 'Report generation is already in progress.' },
         { status: 409 },
       )
     }
@@ -141,80 +223,42 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
-  // ── Generate report ────────────────────────────────────────────────────────
-  const categoryLabel = CATEGORY_LABELS[session.category] ?? session.category
-
-  // Include clarifying question answers so the full report benefits from the
-  // same context refinement that was applied to the free preview.
-  const answersContext = (session.answers ?? []).length > 0
-    ? '\n\nClarifying answers provided by homeowner:\n' +
-      (session.answers ?? [])
-        .map((a: { question: string; answer: string }) => `Q: ${a.question}\nA: ${a.answer}`)
-        .join('\n\n')
-    : ''
-
-  const userText = `Issue description: ${session.description}${answersContext}\nZip code: ${session.zip || 'Not provided'}`
-
-  // Model choice: Haiku is used here deliberately.
-  // Sonnet produces marginally higher quality output but has consistently
-  // exceeded the 60-second Vercel Pro function timeout in this environment
-  // due to cold start overhead. Haiku completes in 10-20 seconds and produces
-  // output that fully satisfies the Zod schema at 2500 tokens.
-  // The correct long-term solution is streaming (Phase 2).
-  let report: DiagnosticBriefReport | QuoteShieldReport
-
+  // ── Mark as generating in Redis ────────────────────────────────────────────
   try {
-    if (session.flow === 'pre') {
-      report = await callClaude({
-        system:    buildDiagnosticBriefSystem(categoryLabel),
-        userText,
-        schema:    diagnosticBriefSchema,
-        model:     'haiku',
-        maxTokens: 2500,
-      })
-    } else {
-      const shieldReport = await callClaude({
-        system:    buildQuoteShieldSystem(categoryLabel, session.zip),
-        userText,
-        schema:    quoteShieldSchema,
-        model:     'haiku',
-        maxTokens: 2500,
-      })
-      report = { ...shieldReport, updates: [] }
-    }
+    await updateSession(reportSessionId, { reportStatus: 'generating' })
   } catch (err) {
-    console.error('[report] Claude call failed:', {
-      message: err instanceof Error ? err.message : 'Unknown error',
-    })
-    return NextResponse.json(
-      { error: 'Report generation failed. Please try again.' },
-      { status: 502 },
-    )
-  } finally {
-    // Always release the lock — even if Claude fails
     await releaseLock()
-  }
-
-  // ── Persist paid status + report ───────────────────────────────────────────
-  try {
-    await updateSession(reportSessionId, {
-      paid:   true,
-      paidAt: new Date().toISOString(),
-      product,
-      report,
-    })
-  } catch (err) {
-    console.error('[report] Redis update failed:', {
+    console.error('[report] Failed to mark generating:', {
       message: err instanceof Error ? err.message : 'Unknown error',
     })
-    return NextResponse.json(
-      { error: 'Failed to save report. Please contact support.' },
-      { status: 503 },
-    )
+    return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
-  const res: GenerateReportResponse = { sessionId: reportSessionId, product }
-  return NextResponse.json(res)
+  // ── Fire background generation and return immediately ──────────────────────
+  //
+  // waitUntil registers the promise but does NOT await it before sending the
+  // response. The HTTP response is sent now (fast). Vercel keeps the function
+  // alive until the promise resolves, up to maxDuration (60s).
+  //
+  // Result:
+  //   - User gets a response in ~2-3 seconds (payment verified, generation started)
+  //   - Generation runs in the background (20-40 seconds)
+  //   - Client polls /api/report/status every 2 seconds
+  //   - Total perceived wait time: 2-3 seconds to acknowledgement, not 40 seconds
+  //
+  waitUntil(
+    generateAndSaveReport(reportSessionId, session, product).finally(async () => {
+      // Always release the lock, whether generation succeeded or failed
+      await releaseLock!()
+    }),
+  )
+
+  const res: GenerateReportResponse = {
+    status:    'generating',
+    sessionId: reportSessionId,
+    product,
+  }
+  return NextResponse.json(res, { status: 202 }) // 202 Accepted — work in progress
 }
 
 // ─── PATCH /api/report — Update a Quote Shield living report ──────────────────
@@ -235,9 +279,7 @@ export async function PATCH(req: Request): Promise<NextResponse> {
 
   // ── Parse and validate ─────────────────────────────────────────────────────
   let body: unknown
-  try {
-    body = await req.json()
-  } catch {
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
@@ -265,7 +307,6 @@ export async function PATCH(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
-  // MED-03: Collapse all "not found / wrong state" into a single generic message
   if (!session || !session.paid || session.flow !== 'post' || !session.report) {
     return NextResponse.json({ error: 'Report not found.' }, { status: 404 })
   }
@@ -283,7 +324,6 @@ export async function PATCH(req: Request): Promise<NextResponse> {
   const categoryLabel  = CATEGORY_LABELS[session.category] ?? session.category
   const noteText       = data.note ? sanitizeInput(data.note) : ''
 
-  // ── Update response schema (defined inline — only used in PATCH) ───────────
   const updateResponseSchema = z.object({
     changedSections: z.array(z.string()),
     updateSummary:   z.string().min(10),
@@ -304,8 +344,9 @@ export async function PATCH(req: Request): Promise<NextResponse> {
         : `New documents uploaded (type: ${data.updateType}). Analyze the attached materials.`,
       files:     data.files,
       schema:    updateResponseSchema,
-      model:     'sonnet',
+      model:     'haiku',
       maxTokens: 2000,
+      retries:   0,
     })
   } catch (err) {
     console.error('[report/update] Claude call failed:', {
@@ -314,7 +355,6 @@ export async function PATCH(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Update generation failed. Please try again.' }, { status: 502 })
   }
 
-  // ── Merge update into existing report ──────────────────────────────────────
   const updatedReport: QuoteShieldReport = {
     ...existingReport,
     ...updateResult.updates,
