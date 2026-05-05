@@ -12,19 +12,9 @@ import {
   MAX_BODY_BYTES,
 } from '@/lib/validators'
 import type { AnalyzeResponse } from '@/lib/types'
+import { getCategoryLabel } from '@/lib/constants'
 
 export const runtime = 'nodejs'
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac:        'HVAC (Heating, Cooling & Air Quality)',
-  plumbing:    'Plumbing',
-  electrical:  'Electrical',
-  roofing:     'Roofing & Exterior',
-  foundation:  'Foundation & Structure',
-  appliances:  'Appliances',
-  pest:        'Pest & Mold',
-  maintenance: 'General Maintenance',
-}
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
@@ -64,7 +54,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const { flow, category, description, zip, files, answers } = data
-  const categoryLabel = CATEGORY_LABELS[category] ?? category
+  const categoryLabel = getCategoryLabel(category)
   const sanitizedDesc = sanitizeInput(description)
 
   // ── Build user text — include clarifying answers if provided ───────────────

@@ -1,94 +1,256 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import type { GenerateReportResponse, Product } from '@/lib/types'
+import type { GenerateReportResponse, ReportStatusResponse } from '@/lib/types'
 
-type Status = 'generating' | 'error'
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const MESSAGES = [
+const STATUS_MESSAGES = [
   'Payment confirmed…',
-  'Generating your report…',
+  'Analyzing your situation…',
+  'Building your report…',
   'Applying regional data…',
   'Almost ready…',
 ]
 
-// Separated into its own component because useSearchParams() requires
-// a Suspense boundary in Next.js 14 when used in a client component.
+const POLL_INTERVAL_MS = 2_000
+const POLL_TIMEOUT_MS  = 90_000
+
+// ─── Inner component ──────────────────────────────────────────────────────────
+
 function SuccessContent() {
   const router = useRouter()
   const params = useSearchParams()
-  const [status, setStatus] = useState<Status>('generating')
-  const [msgIndex, setMsgIndex] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-  const calledRef = useRef(false)
+
+  const [msgIndex, setMsgIndex]       = useState(0)
+  const [failState, setFailState]     = useState<'idle' | 'first' | 'second'>('idle')
+  const [failMessage, setFailMessage] = useState<string | null>(null)
+  const [retrying, setRetrying]       = useState(false)
+
+  const sessionIdRef    = useRef<string | null>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollTimeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
+  const initiatedRef    = useRef(false)
+  const attemptRef      = useRef(0)
 
   const stripeSessionId = params.get('stripe_session_id')
-  const product = params.get('product') as Product | null
+  const product         = params.get('product')
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % MESSAGES.length)
-    }, 2500)
-    return () => clearInterval(interval)
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+    if (pollTimeoutRef.current)  clearTimeout(pollTimeoutRef.current)
   }, [])
 
-  useEffect(() => {
-    if (calledRef.current) return
-    if (!stripeSessionId || !product) {
-      setError('Invalid payment confirmation. Please contact support.')
-      setStatus('error')
+  const handleFail = useCallback((message: string) => {
+    stopPolling()
+    setRetrying(false)
+    setFailMessage(message)
+    setFailState(prev => prev === 'first' ? 'second' : 'first')
+  }, [stopPolling])
+
+  // ── Poll the status endpoint ────────────────────────────────────────────────
+
+  const poll = useCallback(async (sid: string) => {
+    try {
+      const res  = await fetch(`/api/report/status/${sid}`)
+      const json = await res.json() as ReportStatusResponse | { error: string }
+
+      if ('error' in json) {
+        handleFail((json as { error: string }).error)
+        return
+      }
+
+      const { status } = json as ReportStatusResponse
+
+      if (status === 'complete') {
+        stopPolling()
+        const { reportPath } = json as ReportStatusResponse
+        if (reportPath) {
+          router.replace(reportPath)
+        } else {
+          handleFail('Report complete but path is missing. Please try again.')
+        }
+        return
+      }
+
+      if (status === 'failed') {
+        handleFail(
+          (json as ReportStatusResponse).error ??
+          'Report generation failed. Please try again.',
+        )
+      }
+      // status === 'generating' — keep polling
+    } catch {
+      // Network hiccup — don't surface yet, try again next interval
+    }
+  }, [router, stopPolling, handleFail])
+
+  // ── Kick off generation and begin polling ───────────────────────────────────
+
+  const startGeneration = useCallback(async (sid: string) => {
+    poll(sid)
+
+    pollIntervalRef.current = setInterval(() => poll(sid), POLL_INTERVAL_MS)
+
+    pollTimeoutRef.current = setTimeout(() => {
+      handleFail(
+        'Report generation is taking longer than expected. Please try again.',
+      )
+    }, POLL_TIMEOUT_MS)
+  }, [poll, handleFail])
+
+  // ── Retry handler ───────────────────────────────────────────────────────────
+
+  const handleRetry = useCallback(async () => {
+    const sid = sessionIdRef.current
+    if (!sid || !stripeSessionId) return
+
+    setRetrying(true)
+    setFailMessage(null)
+    attemptRef.current += 1
+
+    try {
+      const res  = await fetch('/api/report', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ stripeSessionId }),
+      })
+      const json = await res.json() as GenerateReportResponse | { error: string }
+
+      if (!res.ok || 'error' in json) {
+        handleFail(
+          ('error' in json ? (json as { error: string }).error : null) ??
+          'Could not start report generation. Please try again.',
+        )
+        return
+      }
+    } catch {
+      handleFail('Network error. Please check your connection and try again.')
       return
     }
 
-    calledRef.current = true
+    setRetrying(false)
+    // Reset to generating UI and resume polling
+    setFailState('idle')
+    startGeneration(sid)
+  }, [stripeSessionId, handleFail, startGeneration])
 
-    const generate = async () => {
+  // ── Initial mount ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (initiatedRef.current) return
+    if (!stripeSessionId || !product) {
+      handleFail('Invalid payment confirmation. Please contact support.')
+      return
+    }
+
+    initiatedRef.current = true
+    attemptRef.current   = 1
+
+    const initiate = async () => {
+      let sessionId: string
       try {
-        const res = await fetch('/api/report', {
-          method: 'POST',
+        const res  = await fetch('/api/report', {
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stripeSessionId }),
+          body:    JSON.stringify({ stripeSessionId }),
         })
-
-        const json: GenerateReportResponse | { error: string } = await res.json()
+        const json = await res.json() as GenerateReportResponse | { error: string }
 
         if (!res.ok || 'error' in json) {
-          setError(('error' in json ? json.error : null) ?? 'Report generation failed.')
-          setStatus('error')
+          handleFail(
+            ('error' in json ? (json as { error: string }).error : null) ??
+            'Could not verify payment. Please contact support.',
+          )
           return
         }
 
-        const { sessionId } = json as GenerateReportResponse
-        const type = product === 'brief' || product === 'bundle' ? 'brief' : 'shield'
-        router.replace(`/report/${type}/${sessionId}`)
+        sessionId = (json as GenerateReportResponse).sessionId
+        sessionIdRef.current = sessionId
       } catch {
-        setError('Network error during report generation. Please contact support.')
-        setStatus('error')
+        handleFail('Network error. Please check your connection and try again.')
+        return
       }
+
+      startGeneration(sessionId)
     }
 
-    generate()
-  }, [stripeSessionId, product, router])
+    initiate()
+    return stopPolling
+  }, [stripeSessionId, product, poll, stopPolling, handleFail, startGeneration])
 
-  if (status === 'error') {
+  // ── Rotate status messages ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setMsgIndex(i => (i + 1) % STATUS_MESSAGES.length),
+      3_000,
+    )
+    return () => clearInterval(interval)
+  }, [])
+
+  // ── First failure — show retry ──────────────────────────────────────────────
+
+  if (failState === 'first') {
     return (
       <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
         <div className="max-w-sm w-full card text-center">
-          <p className="text-lg font-semibold text-brand-navy mb-2">Something went wrong</p>
-          <p className="text-sm text-brand-muted mb-5">{error}</p>
+          <p className="text-lg font-semibold text-brand-navy mb-2">
+            Report generation failed
+          </p>
+          <p className="text-sm text-brand-muted mb-6 leading-relaxed">
+            {failMessage ?? 'Something went wrong while building your report.'}
+          </p>
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="btn-primary flex items-center justify-center gap-2 mb-3"
+          >
+            {retrying ? (
+              <><LoadingSpinner size={15} color="white" /><span>Retrying…</span></>
+            ) : (
+              'Try again'
+            )}
+          </button>
           <p className="text-xs text-brand-muted">
-            Your payment was processed. Please email{' '}
-            <a href="mailto:support@homereviewai.com" className="underline">
-              support@homereviewai.com
-            </a>{' '}
-            and we will resolve this immediately.
+            Your payment was processed and will not be charged again.
           </p>
         </div>
       </main>
     )
   }
+
+  // ── Second failure — show support contact ───────────────────────────────────
+
+  if (failState === 'second') {
+    return (
+      <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
+        <div className="max-w-sm w-full card text-center">
+          <p className="text-lg font-semibold text-brand-navy mb-2">
+            Still not working
+          </p>
+          <p className="text-sm text-brand-muted mb-6 leading-relaxed">
+            We weren&apos;t able to generate your report after two attempts.
+            Our team will get this resolved for you right away.
+          </p>
+          <a
+            href={`mailto:support@homereviewai.com?subject=Report generation failed&body=Session: ${sessionIdRef.current ?? 'unknown'}`}
+            className="btn-primary inline-block mb-3"
+          >
+            Email support →
+          </a>
+          <p className="text-xs text-brand-muted">
+            Your payment was processed. We will issue a full refund if we cannot
+            resolve this within 24 hours.
+          </p>
+        </div>
+      </main>
+    )
+  }
+
+  // ── Generating ──────────────────────────────────────────────────────────────
 
   return (
     <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
@@ -97,7 +259,7 @@ function SuccessContent() {
           <LoadingSpinner size={36} color="#B8722E" />
         </div>
         <p className="text-lg font-semibold text-brand-navy mb-1.5">
-          {MESSAGES[msgIndex]}
+          {STATUS_MESSAGES[msgIndex]}
         </p>
         <p className="text-sm text-brand-muted">
           Your full report is being prepared
@@ -107,20 +269,15 @@ function SuccessContent() {
   )
 }
 
-// Suspense boundary is required by Next.js 14 when useSearchParams()
-// is used in a client component during static page generation.
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function SuccessPage() {
   return (
     <Suspense
       fallback={
         <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
           <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <LoadingSpinner size={36} color="#B8722E" />
-            </div>
-            <p className="text-lg font-semibold text-brand-navy mb-1.5">
-              Loading…
-            </p>
+            <LoadingSpinner size={36} color="#B8722E" />
           </div>
         </main>
       }

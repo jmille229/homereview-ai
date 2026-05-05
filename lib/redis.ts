@@ -123,6 +123,55 @@ export async function acquireGenerationLock(sessionId: string): Promise<() => Pr
 }
 
 /**
+ * Writes specific fields to a session WITHOUT acquiring the session write-lock.
+ *
+ * Use ONLY when the caller already holds an exclusive generation lock
+ * (acquireGenerationLock), which guarantees no concurrent writers for this
+ * session. Using updateSession inside generateAndSaveReport would acquire a
+ * second lock unnecessarily, adding latency and complexity.
+ *
+ * This function is intentionally not exported — it exists only to be called
+ * by generateAndSaveReport via the exported wrappers below.
+ */
+async function setSessionFieldsUnsafe(
+  id: string,
+  patch: Partial<StoredSession>,
+): Promise<void> {
+  const existing = await getSession(id)
+  if (!existing) return
+
+  const updated: StoredSession = {
+    ...existing,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const fullTtlSeconds = existing.flow === 'post' ? SHIELD_TTL_SECONDS : BRIEF_TTL_SECONDS
+  const ageSeconds = Math.floor(
+    (Date.now() - new Date(existing.createdAt).getTime()) / 1000,
+  )
+  const remainingSeconds = Math.max(fullTtlSeconds - ageSeconds, 60)
+
+  await redis.set(sessionKey(id), updated, { ex: remainingSeconds })
+}
+
+/** Marks a report session as complete with its generated report content. */
+export async function markReportComplete(
+  id: string,
+  report: StoredSession['report'],
+): Promise<void> {
+  await setSessionFieldsUnsafe(id, { reportStatus: 'complete', report })
+}
+
+/** Marks a report session as failed with a user-facing error message. */
+export async function markReportFailed(
+  id: string,
+  errorMessage: string,
+): Promise<void> {
+  await setSessionFieldsUnsafe(id, { reportStatus: 'failed', reportError: errorMessage })
+}
+
+/**
  * Records a processed Stripe event ID to ensure idempotent webhook handling.
  * Returns true if this is the first time this event has been seen.
  *

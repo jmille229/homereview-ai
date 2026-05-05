@@ -346,27 +346,6 @@ export default function PreviewPage() {
             </div>
           </div>
 
-          {/* Bundle */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-3 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold text-amber-800 mb-0.5">
-                Get both — {primaryPackage.label} + {secondaryPackage.label}
-              </p>
-              <p className="text-xs text-amber-700 opacity-80">
-                Prepare before you call, then evaluate every quote you receive.
-              </p>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-xs text-amber-700 line-through opacity-60">$48</p>
-              <button
-                onClick={() => handlePurchase('bundle')}
-                disabled={purchasing}
-                className="text-sm font-semibold text-amber-800 hover:text-amber-900 transition-colors whitespace-nowrap"
-              >
-                $42 →
-              </button>
-            </div>
-          </div>
 
           {/* Secondary package */}
           <div className="bg-white border border-brand-border rounded-xl px-5 py-4">

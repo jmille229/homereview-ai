@@ -12,12 +12,7 @@ import {
 } from '@/lib/validators'
 import type { Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac: 'HVAC', plumbing: 'Plumbing', electrical: 'Electrical',
-  roofing: 'Roofing & Exterior', foundation: 'Foundation & Structure',
-  appliances: 'Appliances', pest: 'Pest & Mold', maintenance: 'General Maintenance',
-}
+import { getCategoryLabel } from '@/lib/constants'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -48,7 +43,7 @@ export default function IntakePage() {
 
   if (!category) return null
 
-  const categoryLabel = CATEGORY_LABELS[category] ?? category
+  const categoryLabel = getCategoryLabel(category)
 
   // ── File handling ────────────────────────────────────────────────────────
 

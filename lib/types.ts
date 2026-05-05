@@ -153,7 +153,6 @@ export interface StoredSession {
   followupMessages: FollowupMessage[]
   // Post-purchase chat
   chatMessages: ChatMessage[]
-  chatExpiresAt?: string
   createdAt: string
   updatedAt: string
 }

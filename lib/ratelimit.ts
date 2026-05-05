@@ -7,7 +7,7 @@ import { redis } from './redis'
  */
 export const previewLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, '1 h'),
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
   analytics: false,
   prefix: 'hr:preview',
 })
@@ -47,6 +47,21 @@ export const chatLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(200, '1 d'),
   analytics: false,
   prefix: 'hr:chat',
+})
+
+/**
+ * Status polling endpoint: 300 requests per IP per hour.
+ *
+ * The success page polls every 2 seconds for up to 90 seconds — up to 45
+ * requests per purchase flow. Using the report limiter (20/day) would exhaust
+ * a user's daily allowance from polling alone. This dedicated limiter allows
+ * frequent polling without affecting other rate limit buckets.
+ */
+export const statusLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(300, '1 h'),
+  analytics: false,
+  prefix: 'hr:status',
 })
 
 /**

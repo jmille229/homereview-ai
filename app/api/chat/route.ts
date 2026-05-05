@@ -7,6 +7,7 @@ import { chatLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildChatSystem, sanitizeInput } from '@/lib/prompts'
 import { chatRequestSchema } from '@/lib/validators'
 import type { ChatMessage, ChatResponse, StoredSession } from '@/lib/types'
+import { getCategoryLabel } from '@/lib/constants'
 
 export const runtime   = 'nodejs'
 export const maxDuration = 30
@@ -15,17 +16,6 @@ const CHAT_DAYS: Record<string, number> = {
   brief:  30,
   shield: 60,
   bundle: 60,
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac:        'HVAC (Heating, Cooling & Air Quality)',
-  plumbing:    'Plumbing',
-  electrical:  'Electrical',
-  roofing:     'Roofing & Exterior',
-  foundation:  'Foundation & Structure',
-  appliances:  'Appliances',
-  pest:        'Pest & Mold',
-  maintenance: 'General Maintenance',
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -83,7 +73,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const sanitizedMessage = sanitizeInput(data.message, 2000)
-  const categoryLabel    = CATEGORY_LABELS[session.category] ?? session.category
+  const categoryLabel    = getCategoryLabel(session.category)
 
   // ── Multi-turn conversation call ───────────────────────────────────────────
   // Pass the last 10 history messages as proper Anthropic conversation turns.

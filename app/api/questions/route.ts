@@ -6,19 +6,9 @@ import { previewLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildQuestionsSystem, sanitizeInput } from '@/lib/prompts'
 import { questionsRequestSchema, questionsResultSchema } from '@/lib/validators'
 import type { QuestionsResponse } from '@/lib/types'
+import { getCategoryLabel } from '@/lib/constants'
 
 export const runtime = 'nodejs'
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac:        'HVAC (Heating, Cooling & Air Quality)',
-  plumbing:    'Plumbing',
-  electrical:  'Electrical',
-  roofing:     'Roofing & Exterior',
-  foundation:  'Foundation & Structure',
-  appliances:  'Appliances',
-  pest:        'Pest & Mold',
-  maintenance: 'General Maintenance',
-}
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit (shared with preview — same session, same window) ───────────
@@ -50,7 +40,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category
+  const categoryLabel = getCategoryLabel(data.category)
   const sanitizedDesc = sanitizeInput(data.description)
 
   // ── Generate questions — Haiku is fast and accurate for this task ──────────

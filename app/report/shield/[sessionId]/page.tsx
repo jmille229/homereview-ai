@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getCategoryLabel } from '@/lib/constants'
 import { getSession } from '@/lib/redis'
 import { QuoteShield } from '@/components/reports/QuoteShield'
 import type { QuoteShieldReport } from '@/lib/types'
@@ -11,12 +12,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 export const dynamic = 'force-dynamic'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac: 'HVAC', plumbing: 'Plumbing', electrical: 'Electrical',
-  roofing: 'Roofing & Exterior', foundation: 'Foundation & Structure',
-  appliances: 'Appliances', pest: 'Pest & Mold', maintenance: 'General Maintenance',
-}
-
 export default async function ShieldReportPage({ params }: Props) {
   if (!UUID_RE.test(params.sessionId)) redirect('/')
 
@@ -25,7 +20,10 @@ export default async function ShieldReportPage({ params }: Props) {
   if (!session)               redirect('/')
   if (!session.paid)          redirect('/preview')
   if (session.flow !== 'post') redirect('/')
-  if (!session.report)        redirect('/preview')
+
+  // Allow access even when report generation failed — user has paid and
+  // deserves access to chat support while we resolve the issue.
+  const reportFailed = session.reportStatus === 'failed'
 
   const sixtyDaysMs  = 60 * 24 * 60 * 60 * 1000
   const paidAt       = session.paidAt ?? session.createdAt
@@ -36,8 +34,8 @@ export default async function ShieldReportPage({ params }: Props) {
 
   return (
     <QuoteShield
-      report={session.report as QuoteShieldReport}
-      categoryLabel={CATEGORY_LABELS[session.category] ?? session.category}
+      report={session.report as QuoteShieldReport | undefined}
+      categoryLabel={getCategoryLabel(session.category)}
       sessionId={params.sessionId}
       paidAt={paidAt}
       createdAt={session.createdAt}
@@ -45,6 +43,8 @@ export default async function ShieldReportPage({ params }: Props) {
       updatesExpired={updatesExpired}
       product={session.product ?? 'shield'}
       initialChatMessages={session.chatMessages ?? []}
+      reportFailed={reportFailed}
+      reportError={session.reportError}
     />
   )
 }

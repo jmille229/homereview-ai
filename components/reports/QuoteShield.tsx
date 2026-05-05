@@ -16,7 +16,7 @@ import type {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  report: QuoteShieldReport
+  report: QuoteShieldReport | undefined
   categoryLabel: string
   sessionId: string
   paidAt: string
@@ -25,6 +25,8 @@ interface Props {
   updatesExpired: boolean
   product: string
   initialChatMessages: ChatMessage[]
+  reportFailed?: boolean
+  reportError?: string
 }
 
 // ─── Sub-types ────────────────────────────────────────────────────────────────
@@ -113,8 +115,10 @@ export function QuoteShield({
   updatesExpired,
   product,
   initialChatMessages,
+  reportFailed,
+  reportError,
 }: Props) {
-  const [report, setReport] = useState<QuoteShieldReport>(initialReport)
+  const [report, setReport] = useState<QuoteShieldReport | undefined>(initialReport)
   const [tab, setTab] = useState<Tab>('report')
   const [showUpdate, setShowUpdate] = useState(false)
   const [updateType, setUpdateType] = useState<UpdateType>('new_quote')
@@ -208,7 +212,7 @@ export function QuoteShield({
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'report', label: 'Report' },
-    { id: 'activity', label: `Activity (${report.updates?.length ?? 0})` },
+    { id: 'activity', label: `Activity (${report?.updates?.length ?? 0})` },
   ]
 
   return (
@@ -244,8 +248,8 @@ export function QuoteShield({
           </button>
         </div>
 
-        {/* Update button */}
-        {!updatesExpired && (
+        {/* Update button — only when report exists and not failed */}
+        {!updatesExpired && !reportFailed && report && (
           <button
             onClick={() => setShowUpdate((v) => !v)}
             className="w-full mb-4 px-4 py-2.5 bg-white border border-dashed border-brand-border-dark rounded-xl
@@ -261,7 +265,7 @@ export function QuoteShield({
         )}
 
         {/* Update panel */}
-        {showUpdate && !updatesExpired && (
+        {showUpdate && !updatesExpired && !reportFailed && report && (
           <div className="card bg-blue-50 border-blue-200 mb-4 print:hidden">
             <p className="text-sm font-semibold text-brand-navy mb-1">Update your report</p>
             <p className="text-xs text-brand-muted mb-4">
@@ -373,29 +377,46 @@ export function QuoteShield({
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex mb-4 print:hidden" role="tablist">
-          {tabs.map(({ id, label }, i) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-              className={`flex-1 py-2 text-sm transition-colors border ${
-                i === 0 ? 'rounded-l-xl' : 'rounded-r-xl border-l-0'
-              } ${
-                tab === id
-                  ? 'bg-brand-navy text-white border-brand-navy font-medium'
-                  : 'bg-white text-brand-muted border-brand-border hover:border-brand-border-dark'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Failed state banner */}
+        {reportFailed && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <p className="text-sm font-semibold text-red-800 mb-1">Report generation failed</p>
+            <p className="text-xs text-red-700 leading-relaxed">
+              {reportError ?? 'We were unable to generate your report.'}
+              {' '}Your payment has been processed. Please use the chat below,
+              or email{' '}
+              <a href="mailto:support@homereviewai.com" className="underline">
+                support@homereviewai.com
+              </a>.
+            </p>
+          </div>
+        )}
+
+        {/* Tabs — only shown when report is available */}
+        {!reportFailed && report && (
+          <div className="flex mb-4 print:hidden" role="tablist">
+            {tabs.map(({ id, label }, i) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`flex-1 py-2 text-sm transition-colors border ${
+                  i === 0 ? 'rounded-l-xl' : 'rounded-r-xl border-l-0'
+                } ${
+                  tab === id
+                    ? 'bg-brand-navy text-white border-brand-navy font-medium'
+                    : 'bg-white text-brand-muted border-brand-border hover:border-brand-border-dark'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── REPORT TAB ─────────────────────────────────────────────────────── */}
-        {tab === 'report' && (
+        {!reportFailed && tab === 'report' && report && (
           <div role="tabpanel" aria-label="Report">
             {/* 1. Scope */}
             <SectionCard title="1. Scope Confirmation" badge={<VerdictBadge verdict={report.scopeVerdict} type="scope" />}>
@@ -531,7 +552,7 @@ export function QuoteShield({
         )}
 
         {/* ── ACTIVITY TAB ───────────────────────────────────────────────────── */}
-        {tab === 'activity' && (
+        {!reportFailed && tab === 'activity' && report && (
           <div role="tabpanel" aria-label="Activity timeline">
             <div className="card">
               <p className="text-sm font-semibold text-brand-navy mb-5">Report Activity</p>

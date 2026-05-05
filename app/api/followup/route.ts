@@ -11,19 +11,9 @@ import {
   MAX_FOLLOWUP_QUESTIONS,
 } from '@/lib/validators'
 import type { FollowupResponse, StoredSession } from '@/lib/types'
+import { getCategoryLabel } from '@/lib/constants'
 
 export const runtime = 'nodejs'
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac:        'HVAC (Heating, Cooling & Air Quality)',
-  plumbing:    'Plumbing',
-  electrical:  'Electrical',
-  roofing:     'Roofing & Exterior',
-  foundation:  'Foundation & Structure',
-  appliances:  'Appliances',
-  pest:        'Pest & Mold',
-  maintenance: 'General Maintenance',
-}
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
@@ -82,7 +72,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const sanitizedQuestion = sanitizeInput(data.question, 1000)
-  const categoryLabel     = CATEGORY_LABELS[session.category] ?? session.category
+  const categoryLabel     = getCategoryLabel(session.category)
 
   // ── Generate answer ────────────────────────────────────────────────────────
   let result: ReturnType<typeof followupResultSchema.parse>

@@ -3,7 +3,7 @@ import { z, ZodError } from 'zod'
 import { waitUntil } from '@vercel/functions'
 
 import { callClaude } from '@/lib/claude'
-import { getSession, updateSession, acquireGenerationLock } from '@/lib/redis'
+import { getSession, updateSession, acquireGenerationLock, markReportComplete, markReportFailed } from '@/lib/redis'
 import { reportLimiter, getClientIp } from '@/lib/ratelimit'
 import {
   buildDiagnosticBriefSystem,
@@ -19,6 +19,7 @@ import {
   MAX_BODY_BYTES,
 } from '@/lib/validators'
 import { stripe } from '@/lib/stripe'
+import { getCategoryLabel } from '@/lib/constants'
 import type {
   DiagnosticBriefReport,
   GenerateReportResponse,
@@ -29,17 +30,6 @@ import type {
 
 export const runtime    = 'nodejs'
 export const maxDuration = 60
-
-const CATEGORY_LABELS: Record<string, string> = {
-  hvac:        'HVAC (Heating, Cooling & Air Quality)',
-  plumbing:    'Plumbing',
-  electrical:  'Electrical',
-  roofing:     'Roofing & Exterior',
-  foundation:  'Foundation & Structure',
-  appliances:  'Appliances',
-  pest:        'Pest & Mold',
-  maintenance: 'General Maintenance',
-}
 
 // ─── Background report generation ─────────────────────────────────────────────
 
@@ -53,9 +43,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 async function generateAndSaveReport(
   sessionId: string,
   session: StoredSession,
-  product: StoredSession['product'],
 ): Promise<void> {
-  const categoryLabel = CATEGORY_LABELS[session.category] ?? session.category
+  const categoryLabel = getCategoryLabel(session.category)
 
   const answersContext = (session.answers ?? []).length > 0
     ? '\n\nClarifying answers provided by homeowner:\n' +
@@ -76,18 +65,18 @@ async function generateAndSaveReport(
         system:    buildDiagnosticBriefSystem(categoryLabel),
         userText,
         schema:    diagnosticBriefSchema,
-        model:     'sonnet',  // async architecture removes timeout pressure — use highest quality
+        model:     'sonnet',
         maxTokens: 2500,
-        retries:   1,         // one retry safe — waitUntil gives us 60s with no user blocking
+        retries:   0,  // no retry inside waitUntil — two 55s attempts exceed 60s maxDuration
       })
     } else {
       const shieldReport = await callClaude({
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
         schema:    quoteShieldSchema,
-        model:     'sonnet',  // async architecture removes timeout pressure — use highest quality
+        model:     'sonnet',
         maxTokens: 3500,
-        retries:   1,         // one retry safe — waitUntil gives us 60s with no user blocking
+        retries:   0,  // no retry inside waitUntil — two 55s attempts exceed 60s maxDuration
       })
       report = { ...shieldReport, updates: [] }
     }
@@ -98,24 +87,18 @@ async function generateAndSaveReport(
       flow: session.flow,
     })
     // Mark as failed so the polling client can surface an error to the user
-    await updateSession(sessionId, { reportStatus: 'failed', reportError: 'Report generation failed.' })
+    await markReportFailed(sessionId, 'Report generation failed.')
     return
   }
 
   try {
-    await updateSession(sessionId, {
-      paid:         true,
-      paidAt:       new Date().toISOString(),
-      product,
-      reportStatus: 'complete',
-      report,
-    })
+    await markReportComplete(sessionId, report)
   } catch (err) {
     console.error('[report/generate] Redis save failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',
       sessionId,
     })
-    await updateSession(sessionId, { reportStatus: 'failed', reportError: 'Failed to save report.' })
+    await markReportFailed(sessionId, 'Failed to save report.')
   }
 }
 
@@ -198,12 +181,18 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json(res)
   }
 
-  // ── If already generating (concurrent request), return 409 ────────────────
+  // ── If already generating, check if it's stale (waitUntil may have timed out) ──
   if (session.reportStatus === 'generating') {
-    return NextResponse.json(
-      { error: 'Report generation is already in progress.' },
-      { status: 409 },
-    )
+    const fiveMinutesMs = 5 * 60 * 1000
+    const updatedAt = session.updatedAt ?? session.createdAt
+    const isStale = Date.now() - new Date(updatedAt).getTime() > fiveMinutesMs
+    if (!isStale) {
+      // Genuinely in progress — tell client to keep polling
+      const res: GenerateReportResponse = { status: 'generating', sessionId: reportSessionId, product }
+      return NextResponse.json(res, { status: 202 })
+    }
+    // Stale — waitUntil likely timed out. Fall through to retry generation.
+    console.error('[report] Stale generating state detected, retrying:', { sessionId: reportSessionId })
   }
 
   // ── Acquire generation lock ────────────────────────────────────────────────
@@ -223,12 +212,20 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
-  // ── Mark as generating in Redis ────────────────────────────────────────────
+  // ── Mark paid and generating in Redis ────────────────────────────────────────
+  // CRITICAL: paid:true is set HERE in the POST handler, not inside the
+  // background generation function. The status polling endpoint checks
+  // session.paid — if it's false during generation, every poll returns 404.
   try {
-    await updateSession(reportSessionId, { reportStatus: 'generating' })
+    await updateSession(reportSessionId, {
+      paid:         true,
+      paidAt:       new Date().toISOString(),
+      product,
+      reportStatus: 'generating',
+    })
   } catch (err) {
     await releaseLock()
-    console.error('[report] Failed to mark generating:', {
+    console.error('[report] Failed to mark paid/generating:', {
       message: err instanceof Error ? err.message : 'Unknown error',
     })
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
@@ -247,7 +244,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   //   - Total perceived wait time: 2-3 seconds to acknowledgement, not 40 seconds
   //
   waitUntil(
-    generateAndSaveReport(reportSessionId, session, product).finally(async () => {
+    generateAndSaveReport(reportSessionId, session).finally(async () => {
       // Always release the lock, whether generation succeeded or failed
       await releaseLock!()
     }),
@@ -321,7 +318,7 @@ export async function PATCH(req: Request): Promise<NextResponse> {
   }
 
   const existingReport = session.report as QuoteShieldReport
-  const categoryLabel  = CATEGORY_LABELS[session.category] ?? session.category
+  const categoryLabel  = getCategoryLabel(session.category)
   const noteText       = data.note ? sanitizeInput(data.note) : ''
 
   const updateResponseSchema = z.object({
