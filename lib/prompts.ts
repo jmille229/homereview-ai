@@ -105,6 +105,9 @@ Rules:
 - "contractorQuestions" must be tailored to the specific quote and situation described.
 - "negotiationGuide" must include specific dollar amounts and exact language the homeowner can use.
 - Return ONLY valid JSON — no markdown, no preamble, no text outside the braces.
+- Array size limits (strict): upsells max 4, missingItems max 3, redFlags max 3, greenFlags max 3, beforeYouSign max 4.
+- contractorQuestions: exactly 5 questions. Each goodAnswer and concerningAnswer: one sentence maximum.
+- All string fields: be concise. Target 1-2 sentences.
 
 Required schema:
 {
@@ -123,7 +126,7 @@ Required schema:
   "negotiationGuide": "3-4 sentences with specific asks, exact language to use, and what is realistically negotiable.",
   "contractorQuestions": [
     { "question": "Specific question for this contractor", "goodAnswer": "What a good answer looks like", "concerningAnswer": "What a concerning answer looks like" },
-    ...8-12 questions
+    ...exactly 5 questions — goodAnswer and concerningAnswer must each be ONE sentence
   ],
   "getSecondQuote": <true or false>,
   "secondQuoteReason": "Specific reason why or why not to get a second quote.",

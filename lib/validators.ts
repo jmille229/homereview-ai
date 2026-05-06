@@ -172,7 +172,7 @@ export const quoteShieldSchema = z.object({
   redFlags:            z.array(z.string().min(5)),
   greenFlags:          z.array(z.string().min(5)),
   negotiationGuide:    z.string().min(20),
-  contractorQuestions: z.array(z.object({ question: z.string().min(5), goodAnswer: z.string().min(5), concerningAnswer: z.string().min(5) })).min(4).max(14),
+  contractorQuestions: z.array(z.object({ question: z.string().min(5), goodAnswer: z.string().min(5), concerningAnswer: z.string().min(5) })).min(4).max(7),
   getSecondQuote:      z.boolean(),
   secondQuoteReason:   z.string().min(10),
   beforeYouSign:       z.array(z.string().min(5)).min(3).max(8),

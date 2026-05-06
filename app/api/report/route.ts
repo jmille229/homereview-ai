@@ -29,7 +29,7 @@ import type {
 } from '@/lib/types'
 
 export const runtime    = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 120  // 120s gives Sonnet full generation time + cleanup margin on cold starts
 
 // ─── Background report generation ─────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ async function generateAndSaveReport(
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
         maxTokens: 2500,
-        retries:   0,  // no retry inside waitUntil — two 55s attempts exceed 60s maxDuration
+        retries:   0,  // no retry — single attempt with 45s timeout fits cleanly within 120s budget
       })
     } else {
       const shieldReport = await callClaude({
@@ -75,8 +75,8 @@ async function generateAndSaveReport(
         userText,
         schema:    quoteShieldSchema,
         model:     'sonnet',
-        maxTokens: 3500,
-        retries:   0,  // no retry inside waitUntil — two 55s attempts exceed 60s maxDuration
+        maxTokens: 2200,  // 5 questions × ~100 tokens + all fields ≈ 1800-2000 tokens actual
+        retries:   0,  // no retry — single attempt with 45s timeout fits cleanly within 120s budget
       })
       report = { ...shieldReport, updates: [] }
     }
@@ -235,7 +235,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   //
   // waitUntil registers the promise but does NOT await it before sending the
   // response. The HTTP response is sent now (fast). Vercel keeps the function
-  // alive until the promise resolves, up to maxDuration (60s).
+  // alive until the promise resolves, up to maxDuration (120s).
   //
   // Result:
   //   - User gets a response in ~2-3 seconds (payment verified, generation started)
