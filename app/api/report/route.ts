@@ -44,22 +44,25 @@ async function generateAndSaveReport(
   sessionId: string,
   session: StoredSession,
 ): Promise<void> {
-  const categoryLabel = getCategoryLabel(session.category)
-
-  const answersContext = (session.answers ?? []).length > 0
-    ? '\n\nClarifying answers provided by homeowner:\n' +
-      (session.answers ?? [])
-        .map((a: { question: string; answer: string }) => `Q: ${a.question}\nA: ${a.answer}`)
-        .join('\n\n')
-    : ''
-
-  const userText =
-    `Issue description: ${session.description}${answersContext}\n` +
-    `Zip code: ${session.zip || 'Not provided'}`
-
-  let report: DiagnosticBriefReport | QuoteShieldReport
-
+  // Outer try-catch ensures markReportFailed is ALWAYS called on any failure,
+  // including errors that occur before the Claude call (e.g. getCategoryLabel).
+  // Previously, errors here left the session stuck in 'generating' forever.
   try {
+    const categoryLabel = getCategoryLabel(session.category)
+
+    const answersContext = (session.answers ?? []).length > 0
+      ? '\n\nClarifying answers provided by homeowner:\n' +
+        (session.answers ?? [])
+          .map((a: { question: string; answer: string }) => `Q: ${a.question}\nA: ${a.answer}`)
+          .join('\n\n')
+      : ''
+
+    const userText =
+      `Issue description: ${session.description}${answersContext}\n` +
+      `Zip code: ${session.zip || 'Not provided'}`
+
+    let report: DiagnosticBriefReport | QuoteShieldReport
+
     if (session.flow === 'pre') {
       report = await callClaude({
         system:    buildDiagnosticBriefSystem(categoryLabel),
@@ -67,7 +70,7 @@ async function generateAndSaveReport(
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
         maxTokens: 2500,
-        retries:   0,  // no retry — single attempt with 45s timeout fits cleanly within 120s budget
+        retries:   1,  // safe: 2 × 45s = 90s, well within 120s maxDuration
       })
     } else {
       const shieldReport = await callClaude({
@@ -75,30 +78,25 @@ async function generateAndSaveReport(
         userText,
         schema:    quoteShieldSchema,
         model:     'sonnet',
-        maxTokens: 2200,  // 5 questions × ~100 tokens + all fields ≈ 1800-2000 tokens actual
-        retries:   0,  // no retry — single attempt with 45s timeout fits cleanly within 120s budget
+        maxTokens: 2200,
+        retries:   1,  // safe: 2 × 45s = 90s, well within 120s maxDuration
       })
       report = { ...shieldReport, updates: [] }
     }
+
+    await markReportComplete(sessionId, report)
+
   } catch (err) {
-    console.error('[report/generate] Claude call failed:', {
-      message: err instanceof Error ? err.message : 'Unknown error',
+    // Store the ACTUAL error message so it's visible in Upstash and the
+    // status polling response. Generic messages make debugging impossible.
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    console.error('[report/generate] Generation failed:', {
+      message: errorMessage,
       sessionId,
       flow: session.flow,
+      category: session.category,
     })
-    // Mark as failed so the polling client can surface an error to the user
-    await markReportFailed(sessionId, 'Report generation failed.')
-    return
-  }
-
-  try {
-    await markReportComplete(sessionId, report)
-  } catch (err) {
-    console.error('[report/generate] Redis save failed:', {
-      message: err instanceof Error ? err.message : 'Unknown error',
-      sessionId,
-    })
-    await markReportFailed(sessionId, 'Failed to save report.')
+    await markReportFailed(sessionId, errorMessage)
   }
 }
 

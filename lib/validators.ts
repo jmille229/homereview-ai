@@ -154,10 +154,10 @@ export const diagnosticBriefSchema = z.object({
   contractorType:    z.string().min(5),
   licenseRequired:   z.string().min(5),
   verifyCredentials: z.array(z.string().min(5)).min(1).max(6),
-  costFactors:       z.array(z.string().min(5)).min(2).max(6),
-  questionsToAsk:    z.array(z.object({ question: z.string().min(5), whyItMatters: z.string().min(10) })).min(6).max(10),
-  redFlags:          z.array(z.string().min(5)).min(2).max(6),
-  insistOnWriting:   z.array(z.string().min(5)).min(2).max(6),
+  costFactors:       z.array(z.string().min(5)).min(1).max(6),
+  questionsToAsk:    z.array(z.object({ question: z.string().min(5), whyItMatters: z.string().min(10) })).min(4).max(12),
+  redFlags:          z.array(z.string().min(5)).min(1).max(8),
+  insistOnWriting:   z.array(z.string().min(5)).min(1).max(8),
 })
 
 export const quoteShieldSchema = z.object({
@@ -175,5 +175,5 @@ export const quoteShieldSchema = z.object({
   contractorQuestions: z.array(z.object({ question: z.string().min(5), goodAnswer: z.string().min(5), concerningAnswer: z.string().min(5) })).min(4).max(7),
   getSecondQuote:      z.boolean(),
   secondQuoteReason:   z.string().min(10),
-  beforeYouSign:       z.array(z.string().min(5)).min(3).max(8),
+  beforeYouSign:       z.array(z.string().min(5)).min(1).max(8),
 })
