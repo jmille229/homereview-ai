@@ -70,7 +70,7 @@ async function generateAndSaveReport(
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
         maxTokens: 2500,
-        retries:   1,  // safe: 2 × 45s = 90s, well within 120s maxDuration
+        retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
     } else {
       const shieldReport = await callClaude({
@@ -79,7 +79,7 @@ async function generateAndSaveReport(
         schema:    quoteShieldSchema,
         model:     'sonnet',
         maxTokens: 2200,
-        retries:   1,  // safe: 2 × 45s = 90s, well within 120s maxDuration
+        retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
       report = { ...shieldReport, updates: [] }
     }

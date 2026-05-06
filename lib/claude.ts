@@ -16,7 +16,7 @@ const anthropic = new Anthropic({
 
 const HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 const SONNET_MODEL = 'claude-sonnet-4-6'
-const TIMEOUT_MS   = 45_000  // 45s leaves cleanup margin within the 120s report route maxDuration
+const TIMEOUT_MS   = 90_000  // 90s: empirically confirmed Sonnet takes >45s; 90s fits within 120s maxDuration
 
 // ─── Content block helpers ────────────────────────────────────────────────────
 
