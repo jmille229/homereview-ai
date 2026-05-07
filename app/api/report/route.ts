@@ -28,6 +28,44 @@ import type {
   UpdateReportResponse,
 } from '@/lib/types'
 
+// ─── Schema repair ────────────────────────────────────────────────────────────
+
+/**
+ * Trims oversized arrays to their display limits after Zod validation passes.
+ *
+ * This is the correct layer for count enforcement. Zod validates structure
+ * and types. This function enforces the product's display decisions. The two
+ * concerns are separate: a model returning 7 credentials instead of 5 is not
+ * a data error — it's extra content that we trim before saving.
+ *
+ * Result: reports always save successfully when structurally valid.
+ * Users never see a failure because Sonnet was slightly generous with a list.
+ */
+function repairDiagnosticBrief(report: DiagnosticBriefReport): DiagnosticBriefReport {
+  return {
+    ...report,
+    verifyCredentials: report.verifyCredentials.slice(0, 6),
+    costFactors:       report.costFactors.slice(0, 6),
+    questionsToAsk:    report.questionsToAsk.slice(0, 10),
+    redFlags:          report.redFlags.slice(0, 6),
+    insistOnWriting:   report.insistOnWriting.slice(0, 6),
+  }
+}
+
+function repairQuoteShield(report: Omit<QuoteShieldReport, 'updates'>): QuoteShieldReport {
+  return {
+    ...report,
+    upsells:             report.upsells.slice(0, 6),
+    missingItems:        report.missingItems.slice(0, 6),
+    redFlags:            report.redFlags.slice(0, 6),
+    greenFlags:          report.greenFlags.slice(0, 6),
+    contractorQuestions: report.contractorQuestions.slice(0, 8),
+    beforeYouSign:       report.beforeYouSign.slice(0, 6),
+    updates:             [],
+  }
+}
+
+
 export const runtime    = 'nodejs'
 export const maxDuration = 120  // 120s gives Sonnet full generation time + cleanup margin on cold starts
 
@@ -64,7 +102,7 @@ async function generateAndSaveReport(
     let report: DiagnosticBriefReport | QuoteShieldReport
 
     if (session.flow === 'pre') {
-      report = await callClaude({
+      const rawBrief = await callClaude({
         system:    buildDiagnosticBriefSystem(categoryLabel),
         userText,
         schema:    diagnosticBriefSchema,
@@ -72,8 +110,9 @@ async function generateAndSaveReport(
         maxTokens: 2500,
         retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
+      report = repairDiagnosticBrief(rawBrief)
     } else {
-      const shieldReport = await callClaude({
+      const rawShield = await callClaude({
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
         schema:    quoteShieldSchema,
@@ -81,7 +120,7 @@ async function generateAndSaveReport(
         maxTokens: 2200,
         retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
-      report = { ...shieldReport, updates: [] }
+      report = repairQuoteShield(rawShield)
     }
 
     await markReportComplete(sessionId, report)
