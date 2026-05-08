@@ -107,7 +107,7 @@ async function generateAndSaveReport(
         userText,
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
-        maxTokens: 2500,
+        maxTokens: 3500,
         retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
       report = repairDiagnosticBrief(rawBrief)

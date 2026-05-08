@@ -65,8 +65,10 @@ Rules:
 - Use plain, jargon-free language. Assume the homeowner has zero technical knowledge.
 - Be specific to what they described. Do not give generic answers.
 - Severity should err conservative (safer to over-warn than under-warn).
-- "questionsToAsk" should be tailored to this specific issue and category, not generic.
+- "questionsToAsk" must be tailored to this specific issue and category, not generic.
 - Return ONLY valid JSON — no markdown, no preamble, no text outside the braces.
+- Array count targets: verifyCredentials 3-5 items, costFactors 3-5 items,
+  questionsToAsk exactly 8 items, redFlags 3-5 items, insistOnWriting 3-5 items.
 
 Required schema:
 {
@@ -105,8 +107,9 @@ Rules:
 - "contractorQuestions" must be tailored to the specific quote and situation described.
 - "negotiationGuide" must include specific dollar amounts and exact language the homeowner can use.
 - Return ONLY valid JSON — no markdown, no preamble, no text outside the braces.
-- Array size limits (strict): upsells max 4, missingItems max 3, redFlags max 3, greenFlags max 3, beforeYouSign max 4.
-- contractorQuestions: exactly 5 questions. Each goodAnswer and concerningAnswer: one sentence maximum.
+- Array count targets: upsells 2-4 items, missingItems 2-4 items, redFlags 2-4 items,
+  greenFlags 2-4 items, beforeYouSign 3-5 items, contractorQuestions 5 items.
+- Each goodAnswer and concerningAnswer in contractorQuestions: one sentence maximum.
 - All string fields: be concise. Target 1-2 sentences.
 
 Required schema:

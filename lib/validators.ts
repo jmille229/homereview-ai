@@ -20,10 +20,10 @@ export const ALLOWED_MIME_TYPES: AllowedMimeType[] = [
   'application/pdf',
 ]
 
-export const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 // 2 MB per file
-export const MAX_FILES_PER_REQUEST = 3
-export const MAX_BODY_BYTES = 9 * 1024 * 1024
-export const MAX_FOLLOWUP_QUESTIONS = 2  // free pre-purchase follow-up limit
+export const MAX_FILE_SIZE_BYTES    = 2 * 1024 * 1024
+export const MAX_FILES_PER_REQUEST  = 3
+export const MAX_BODY_BYTES         = 9 * 1024 * 1024
+export const MAX_FOLLOWUP_QUESTIONS = 2
 
 export const CATEGORY_IDS: CategoryId[] = [
   'hvac', 'plumbing', 'electrical', 'roofing',
@@ -42,10 +42,7 @@ const uploadedFileSchema = z
     data: z.string().min(1).max(MAX_BASE64_CHARS),
   })
   .refine(
-    (f) => {
-      const estimatedBytes = Math.floor(f.data.length * 0.75)
-      return estimatedBytes <= MAX_FILE_SIZE_BYTES * 1.1
-    },
+    (f) => Math.floor(f.data.length * 0.75) <= MAX_FILE_SIZE_BYTES * 1.1,
     { message: 'File data does not match declared size.' },
   )
 
@@ -75,7 +72,7 @@ export const analyzeRequestSchema = z.object({
     .regex(/^\d{5}$/, 'Please enter a valid 5-digit US zip code.')
     .or(z.literal('')),
   files:   z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
-  answers: z.array(userAnswerSchema).max(4),  // max 4 clarifying answers
+  answers: z.array(userAnswerSchema).max(4),
 })
 
 export const followupRequestSchema = z.object({
@@ -92,7 +89,7 @@ export const chatRequestSchema = z.object({
       content:   z.string().min(1).max(4000),
       timestamp: z.string(),
     })
-  ).max(50),  // cap history to prevent enormous payloads
+  ).max(50),
 })
 
 export const generateReportRequestSchema = z.object({
@@ -119,6 +116,13 @@ export const checkoutRequestSchema = z.object({
 })
 
 // ─── AI output schemas ────────────────────────────────────────────────────────
+//
+// Design principle: Zod validates STRUCTURE — required fields exist, types are
+// correct, strings are non-empty. It does NOT enforce array count limits on AI
+// output. Count limits are a display concern enforced by repair functions in
+// the report route after validation passes. This means a structurally valid
+// report always saves, regardless of whether Sonnet returned 6 or 8 items in
+// a list.
 
 export const questionsResultSchema = z.object({
   questions: z.array(
@@ -153,11 +157,14 @@ export const diagnosticBriefSchema = z.object({
   diyDetails:        z.string().min(10),
   contractorType:    z.string().min(5),
   licenseRequired:   z.string().min(5),
-  verifyCredentials: z.array(z.string().min(5)).min(1).max(6),
-  costFactors:       z.array(z.string().min(5)).min(1).max(6),
-  questionsToAsk:    z.array(z.object({ question: z.string().min(5), whyItMatters: z.string().min(10) })).min(4).max(12),
-  redFlags:          z.array(z.string().min(5)).min(1).max(8),
-  insistOnWriting:   z.array(z.string().min(5)).min(1).max(8),
+  verifyCredentials: z.array(z.string().min(5)).min(1),
+  costFactors:       z.array(z.string().min(5)).min(1),
+  questionsToAsk:    z.array(z.object({
+    question:     z.string().min(5),
+    whyItMatters: z.string().min(10),
+  })).min(1),
+  redFlags:          z.array(z.string().min(5)).min(1),
+  insistOnWriting:   z.array(z.string().min(5)).min(1),
 })
 
 export const quoteShieldSchema = z.object({
@@ -167,13 +174,21 @@ export const quoteShieldSchema = z.object({
   pricingAnalysis:     z.string().min(20),
   estimatedFairMin:    z.number().int().positive(),
   estimatedFairMax:    z.number().int().positive(),
-  upsells:             z.array(z.object({ item: z.string().min(1), amount: z.number().int().min(0), reason: z.string().min(10) })),
+  upsells:             z.array(z.object({
+    item:   z.string().min(1),
+    amount: z.number().int().min(0),
+    reason: z.string().min(10),
+  })),
   missingItems:        z.array(z.string().min(5)),
   redFlags:            z.array(z.string().min(5)),
   greenFlags:          z.array(z.string().min(5)),
   negotiationGuide:    z.string().min(20),
-  contractorQuestions: z.array(z.object({ question: z.string().min(5), goodAnswer: z.string().min(5), concerningAnswer: z.string().min(5) })).min(4).max(7),
+  contractorQuestions: z.array(z.object({
+    question:         z.string().min(5),
+    goodAnswer:       z.string().min(5),
+    concerningAnswer: z.string().min(5),
+  })).min(1),
   getSecondQuote:      z.boolean(),
   secondQuoteReason:   z.string().min(10),
-  beforeYouSign:       z.array(z.string().min(5)).min(1).max(8),
+  beforeYouSign:       z.array(z.string().min(5)).min(1),
 })
