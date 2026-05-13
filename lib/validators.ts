@@ -135,7 +135,7 @@ export const questionsResultSchema = z.object({
 
 export const previewResultSchema = z.object({
   summary:        z.string().min(10),
-  severity:       z.enum(['Minor', 'Moderate', 'Serious', 'Urgent'] as [Severity, Severity, Severity, Severity]),
+  severity:       z.enum(['Emergency', 'Urgent', 'Monitor', 'Cosmetic'] as [Severity, Severity, Severity, Severity]),
   severityReason: z.string().min(10),
   costMin:        z.number().int().positive(),
   costMax:        z.number().int().positive(),

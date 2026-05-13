@@ -41,7 +41,7 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
 Required schema:
 {
   "summary": "2-3 sentences. State the most likely issue (or what the quote covers). Distinguish clearly between 'likely cause' and 'possible cause'. Be specific to what was described — never generic.",
-  "severity": "One of exactly: Emergency (act within 24h) | Urgent (act within 1-2 weeks) | Monitor (stable, watch for changes) | Cosmetic (no functional impact)",
+  "severity": "Exactly one word — Emergency OR Urgent OR Monitor OR Cosmetic",
   "severityReason": "One sentence. State the specific consequence of delay — structural damage, safety risk, cost escalation, or health hazard. Do not soften serious findings.",
   "costMin": <integer — regional low-end repair cost in USD, no formatting>,
   "costMax": <integer — regional high-end repair cost in USD, no formatting>,
