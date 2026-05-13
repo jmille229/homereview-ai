@@ -7,7 +7,7 @@ import { redis } from './redis'
  */
 export const previewLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  limiter: Ratelimit.slidingWindow(20, '1 h'),
   analytics: false,
   prefix: 'hr:preview',
 })
