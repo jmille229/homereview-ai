@@ -117,7 +117,7 @@ async function generateAndSaveReport(
         userText,
         schema:    quoteShieldSchema,
         model:     'sonnet',
-        maxTokens: 2200,
+        maxTokens: 3500,
         retries:   0,  // one attempt at 90s — retry adds no value when timeout is the failure mode
       })
       report = repairQuoteShield(rawShield)
