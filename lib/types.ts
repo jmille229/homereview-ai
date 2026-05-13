@@ -12,7 +12,7 @@ export type CategoryId =
   | 'pest'
   | 'maintenance'
 
-export type Severity = 'Minor' | 'Moderate' | 'Serious' | 'Urgent'
+export type Severity = 'Emergency' | 'Urgent' | 'Monitor' | 'Cosmetic'
 export type DiyFeasibility = 'None' | 'Low' | 'Medium' | 'High'
 export type ScopeVerdict = 'Matches Problem' | 'Partial Match' | 'Scope Mismatch'
 export type PricingVerdict = 'Fair' | 'High End' | 'Inflated'
