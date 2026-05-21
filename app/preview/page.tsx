@@ -8,6 +8,7 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import type { FollowupResponse, Product } from '@/lib/types'
 import { MAX_FOLLOWUP_QUESTIONS } from '@/lib/validators'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 
 // ─── Package definitions ──────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ export default function PreviewPage() {
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar onBack={() => router.push('/questions')} />
+        <ProgressBar step={4} total={4} />
 
         {/* ── Free preview header ──────────────────────────────────────────── */}
         <div className="mb-5">
@@ -266,25 +268,37 @@ export default function PreviewPage() {
           <p className="text-sm text-brand-navy leading-relaxed">{preview.keyInsight}</p>
         </div>
 
-        {/* ── Pre-purchase follow-up Q&A ───────────────────────────────────── */}
-        {!followupExhausted ? (
-          <div className="card mb-8">
-            <FollowupQA
-              sessionId={sessionId}
-              flow={flow}
-              onExhausted={() => setFollowupExhausted(true)}
-            />
-          </div>
-        ) : (
-          <div className="card mb-8 bg-amber-50 border-amber-200">
-            <p className="text-sm font-semibold text-amber-800 mb-1">
-              You&apos;ve used your free follow-up questions
-            </p>
-            <p className="text-xs text-amber-700 leading-relaxed">
-              Purchase the full report for unlimited chat about your situation — included free with every report.
-            </p>
-          </div>
-        )}
+        {/* ── Pre-purchase follow-up Q&A — surfaced as an invitation ────── */}
+        <div className="mb-8">
+          {!followupExhausted ? (
+            <div className="border border-brand-amber rounded-xl overflow-hidden">
+              <div className="bg-brand-amber bg-opacity-[0.06] px-5 pt-4 pb-3 border-b border-brand-amber border-opacity-20">
+                <p className="text-sm font-semibold text-brand-navy mb-0.5">
+                  Have a question about this?
+                </p>
+                <p className="text-xs text-brand-muted">
+                  Ask up to {MAX_FOLLOWUP_QUESTIONS} free questions before purchasing.
+                </p>
+              </div>
+              <div className="bg-white px-5 pb-5 pt-4 rounded-b-xl">
+                <FollowupQA
+                  sessionId={sessionId}
+                  flow={flow}
+                  onExhausted={() => setFollowupExhausted(true)}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-sm font-semibold text-amber-800 mb-1">
+                Free questions used
+              </p>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Every report includes unlimited follow-up chat — continue the conversation after purchasing.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* ── Upsell section ───────────────────────────────────────────────── */}
         <div>

@@ -640,6 +640,30 @@ export function QuoteShield({
             </div>
           </div>
         )}
+        {/* Chat — activated state signals ongoing support, not an appended feature */}
+        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden">
+          <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
+            <p className="text-sm font-semibold text-white">Your advisor is ready</p>
+            <span className="ml-auto text-xs text-white opacity-60">60 days included</span>
+          </div>
+          <div className="bg-white p-5">
+            <ChatInterface
+              sessionId={sessionId}
+              product={product}
+              paidAt={paidAt}
+              initialMessages={initialChatMessages}
+            />
+          </div>
+        </div>
+
+        {/* Disclaimer */}
+        <div className="mt-4 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
+          <p className="text-[11px] text-brand-muted leading-relaxed">
+            HomeReview AI provides informational analysis, not licensed professional advice.
+            This report is for guidance only and does not constitute legal or financial advice.
+          </p>
+        </div>
       </div>
     </main>
   )

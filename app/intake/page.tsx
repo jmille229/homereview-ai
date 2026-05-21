@@ -12,6 +12,7 @@ import {
 } from '@/lib/validators'
 import type { Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import { getCategoryLabel } from '@/lib/constants'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
@@ -114,6 +115,7 @@ export default function IntakePage() {
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar step="Step 2 of 4" onBack={() => router.push('/category')} />
+        <ProgressBar step={2} total={4} />
 
         <div className="flex items-center gap-2.5 mb-7">
           <h2 className="text-2xl font-semibold text-brand-navy">Describe the situation</h2>

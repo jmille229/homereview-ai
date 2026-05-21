@@ -7,6 +7,7 @@ import { NavBar } from '@/components/ui/NavBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import type { AiQuestion, AnalyzeResponse, QuestionsResponse, UserAnswer } from '@/lib/types'
 import { getPendingFiles } from '@/lib/pendingFiles'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 
 // Static constant — defined at module scope, not inside the component,
 // so it never needs to appear in useCallback/useEffect dependency arrays.
@@ -159,6 +160,7 @@ export default function QuestionsPage() {
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar step="Step 3 of 4" onBack={() => router.push('/intake')} />
+        <ProgressBar step={3} total={4} />
 
         <div className="mb-7">
           <h2 className="text-2xl font-semibold text-brand-navy mb-2">
