@@ -5,15 +5,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
-import type { Flow, UploadedFile } from '@/lib/types'
+import { CATEGORY_LABELS } from '@/lib/constants'
+import type { CategoryId, Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
-import { ProgressBar } from '@/components/ui/ProgressBar'
-import { getCategoryLabel } from '@/lib/constants'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -24,29 +24,31 @@ interface LocalFile {
   dataUrl: string
 }
 
+const CATEGORIES: Array<{ id: CategoryId; icon: string }> = [
+  { id: 'hvac',        icon: '🌡️' },
+  { id: 'plumbing',    icon: '🚿' },
+  { id: 'electrical',  icon: '⚡' },
+  { id: 'roofing',     icon: '🏠' },
+  { id: 'foundation',  icon: '🏗️' },
+  { id: 'appliances',  icon: '🔧' },
+  { id: 'pest',        icon: '🪲' },
+  { id: 'maintenance', icon: '🛠️' },
+]
+
 export default function IntakePage() {
   const router = useRouter()
   const {
     flow, category, description, zip,
-    setFlow, setDescription, setZip, setQuestions,
+    setFlow, setCategory, setDescription, setZip, setQuestions,
   } = useSessionStore()
 
-  const [files, setFiles]         = useState<LocalFile[]>([])
-  const [fileError, setFileError] = useState<string | null>(null)
+  const [files, setFiles]             = useState<LocalFile[]>([])
+  const [fileError, setFileError]     = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Guard: must have a category before reaching intake
-  useEffect(() => {
-    if (!category) router.replace('/category')
-  }, [category, router])
-
-  if (!category) return null
-
-  const categoryLabel = getCategoryLabel(category)
-
-  // ── File handling ────────────────────────────────────────────────────────
+  // ── File handling ─────────────────────────────────────────────────────────
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
@@ -70,7 +72,7 @@ export default function IntakePage() {
       }
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
+        reader.onload  = () => resolve(reader.result as string)
         reader.onerror = () => reject(new Error('File read failed'))
         reader.readAsDataURL(file)
       })
@@ -80,21 +82,23 @@ export default function IntakePage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const removeFile = (index: number) => {
+  const removeFile = (index: number) =>
     setFiles(prev => prev.filter((_, i) => i !== index))
-  }
 
-  // ── Submit — routes to questions page ────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!flow) {
       setSubmitError('Please tell us whether you have a quote yet.')
+      return
+    }
+    if (!category) {
+      setSubmitError('Please select the area of your home.')
       return
     }
     setSubmitError(null)
     setSubmitting(true)
 
-    // Save files to sessionStorage so the questions page can access them
     const uploadedFiles: UploadedFile[] = files.map(f => ({
       name: f.name,
       type: f.type,
@@ -102,36 +106,35 @@ export default function IntakePage() {
       data: f.dataUrl.split(',')[1] ?? '',
     }))
     savePendingFiles(uploadedFiles)
-
-    // Clear any stale questions from a previous session
     setQuestions([])
-
     router.push('/questions')
   }
 
-  const canSubmit = !!flow && description.trim().length >= 20 && !submitting
+  const canSubmit = !!flow && !!category && description.trim().length >= 20 && !submitting
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 2 of 4" onBack={() => router.push('/category')} />
-        <ProgressBar step={2} total={4} />
+        <NavBar step="Step 1 of 3" onBack={() => router.push('/')} />
+        <ProgressBar step={1} total={3} />
 
-        <div className="flex items-center gap-2.5 mb-7">
-          <h2 className="text-2xl font-semibold text-brand-navy">Describe the situation</h2>
-          <span className="text-[11px] font-medium px-2.5 py-1 bg-white border border-brand-border text-brand-muted rounded-lg">
-            {categoryLabel}
-          </span>
-        </div>
+        <h2 className="text-2xl font-semibold text-brand-navy mb-1.5">
+          Describe your situation
+        </h2>
+        <p className="text-sm text-brand-muted mb-7">
+          Tell us what&apos;s happening. The more detail, the better.
+        </p>
 
-        {/* ── Pre/post question ────────────────────────────────────────────── */}
+        {/* ── Pre/post — asked once, in context ──────────────────────────── */}
         <div className="mb-6">
-          <p className="section-label">Have you already received a contractor quote?</p>
+          <p className="section-label">Where are you in the process?</p>
           <div className="grid grid-cols-2 gap-2">
             {(
               [
-                { value: 'pre' as Flow, label: 'No — not yet',    sub: "I haven't contacted anyone" },
-                { value: 'post' as Flow, label: 'Yes — I have one', sub: 'I want to evaluate it' },
+                { value: 'pre'  as Flow, label: 'I have a home issue',    sub: 'No contractor contacted yet' },
+                { value: 'post' as Flow, label: 'I have a quote to review', sub: 'I want to evaluate it' },
               ] as const
             ).map(({ value, label, sub }) => (
               <button
@@ -154,12 +157,63 @@ export default function IntakePage() {
           </div>
         </div>
 
-        {/* ── Description ─────────────────────────────────────────────────── */}
-        <div className="mb-4">
+        {/* ── Post-quote: file upload FIRST — it's the primary input ──────── */}
+        {flow === 'post' && (
+          <div className="mb-5">
+            <p className="section-label">Upload the contractor quote</p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-full border-2 border-dashed border-brand-navy border-opacity-30 rounded-xl p-6 text-center hover:bg-white hover:border-opacity-60 transition-all cursor-pointer"
+              aria-label="Upload contractor quote"
+            >
+              <p className="text-sm font-semibold text-brand-navy mb-1">
+                Upload PDF or photo of the quote
+              </p>
+              <p className="text-xs text-brand-muted">
+                Uploading the actual quote gives you line-by-line analysis
+              </p>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={ALLOWED_MIME_TYPES.join(',')}
+                onChange={handleFileChange}
+                className="hidden"
+                aria-hidden="true"
+              />
+            </button>
+
+            {fileError && (
+              <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
+            )}
+            {files.length > 0 && (
+              <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
+                {files.map((f, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-md text-xs text-brand-navy"
+                  >
+                    <span className="truncate max-w-[160px]">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      aria-label={`Remove ${f.name}`}
+                      className="text-brand-muted hover:text-brand-navy ml-1"
+                    >×</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ── Description ────────────────────────────────────────────────── */}
+        <div className="mb-5">
           <label htmlFor="description" className="section-label">
             {flow === 'post'
-              ? 'Describe the situation and what the contractor told you.'
-              : "What's happening? The more detail, the better."}
+              ? 'Describe the situation and what the contractor told you'
+              : "What's happening?"}
           </label>
           <textarea
             id="description"
@@ -169,8 +223,8 @@ export default function IntakePage() {
             maxLength={4000}
             placeholder={
               flow === 'post'
-                ? 'e.g. My AC stopped cooling. A contractor quoted $3,200 for full replacement. The unit is 8 years old. Not sure if replacement is really needed.'
-                : 'e.g. My furnace runs but shuts off after 2 minutes. The house is getting cold. Unit is 12 years old, never serviced.'
+                ? 'e.g. My AC stopped cooling. A contractor quoted $3,200 for full replacement. The unit is 8 years old. I\'m not sure if replacement is really necessary.'
+                : 'e.g. My furnace runs but shuts off after about 2 minutes. The house is getting cold. The unit is 12 years old and has never been serviced.'
             }
             className="input resize-y leading-relaxed"
             aria-describedby="desc-count"
@@ -180,79 +234,90 @@ export default function IntakePage() {
           </p>
         </div>
 
-        {/* ── File upload ──────────────────────────────────────────────────── */}
-        <div className="mb-4">
-          <label className="section-label">
-            Upload photos or documents{' '}
-            <span className="font-normal normal-case tracking-normal">
-              (optional — max {MAX_FILES_PER_REQUEST} files, 2MB each)
-            </span>
-          </label>
+        {/* ── Pre-quote: file upload secondary ────────────────────────────── */}
+        {flow === 'pre' && (
+          <div className="mb-5">
+            <label className="section-label">
+              Photos or documents{' '}
+              <span className="font-normal normal-case tracking-normal text-brand-muted">
+                (optional — helpful for visible damage)
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-full border border-dashed border-brand-border-dark rounded-xl p-4 text-center hover:bg-white transition-colors cursor-pointer"
+              aria-label="Upload files"
+            >
+              <p className="text-sm font-medium text-brand-navy mb-0.5">Tap to upload</p>
+              <p className="text-xs text-brand-muted">
+                Photos of damage, service records, appliance manuals
+              </p>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={ALLOWED_MIME_TYPES.join(',')}
+                onChange={handleFileChange}
+                className="hidden"
+                aria-hidden="true"
+              />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="w-full border border-dashed border-brand-border-dark rounded-xl p-5 text-center hover:bg-white transition-colors cursor-pointer"
-            aria-label="Upload files"
-          >
-            <p className="text-sm font-medium text-brand-navy mb-1">Tap to upload</p>
-            <p className="text-xs text-brand-muted">
-              {flow === 'post'
-                ? 'Contractor quotes, invoices, photos of the issue'
-                : 'Photos, service records, appliance manuals'}
-            </p>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={ALLOWED_MIME_TYPES.join(',')}
-              onChange={handleFileChange}
-              className="hidden"
-              aria-hidden="true"
-            />
-          </button>
-
-          {fileError && (
-            <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
-          )}
-
-          {files.length > 0 && (
-            <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
-              {files.map((f, i) => (
-                <li
-                  key={i}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-md text-xs text-brand-navy"
-                >
-                  <span className="truncate max-w-[160px]">{f.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(i)}
-                    aria-label={`Remove ${f.name}`}
-                    className="text-brand-muted hover:text-brand-navy ml-1"
-                  >×</button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* ── Post-quote tip ───────────────────────────────────────────────── */}
-        {flow === 'post' && (
-          <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
-            <p className="text-xs font-semibold text-blue-700 mb-0.5">
-              Tip: Upload the written quote for best results
-            </p>
-            <p className="text-xs text-blue-700 opacity-85">
-              A PDF or photo of the estimate lets us analyze it line by line.
-            </p>
+            {fileError && (
+              <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
+            )}
+            {files.length > 0 && (
+              <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
+                {files.map((f, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-md text-xs text-brand-navy"
+                  >
+                    <span className="truncate max-w-[160px]">{f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      aria-label={`Remove ${f.name}`}
+                      className="text-brand-muted hover:text-brand-navy ml-1"
+                    >×</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
-        {/* ── Zip code ────────────────────────────────────────────────────── */}
+        {/* ── Category — inline pill selector ─────────────────────────────── */}
+        <div className="mb-5">
+          <p className="section-label">Area of the home</p>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map(({ id, icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCategory(id)}
+                aria-pressed={category === id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 ${
+                  category === id
+                    ? 'border-brand-navy bg-brand-navy text-white'
+                    : 'border-brand-border bg-white text-brand-muted hover:border-brand-border-dark hover:text-brand-navy'
+                }`}
+              >
+                <span aria-hidden="true">{icon}</span>
+                {CATEGORY_LABELS[id]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Zip code ─────────────────────────────────────────────────────── */}
         <div className="mb-7">
           <label htmlFor="zip" className="section-label">
             Zip code{' '}
-            <span className="font-normal normal-case tracking-normal">(for regional cost data)</span>
+            <span className="font-normal normal-case tracking-normal text-brand-muted">
+              (for regional cost data)
+            </span>
           </label>
           <input
             id="zip"
@@ -278,14 +343,13 @@ export default function IntakePage() {
           disabled={!canSubmit}
           className="btn-primary mb-2 flex items-center justify-center gap-2"
         >
-          {submitting ? (
-            <><LoadingSpinner size={16} color="white" /><span>Continuing…</span></>
-          ) : (
-            'Continue →'
-          )}
+          {submitting
+            ? <><LoadingSpinner size={16} color="white" /><span>Continuing…</span></>
+            : 'Continue →'
+          }
         </button>
         <p className="text-xs text-brand-muted text-center">
-          We&apos;ll ask a couple of quick questions next · Free, no payment required
+          Free preview included · No payment required
         </p>
       </div>
     </main>

@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { useSessionStore } from '@/store/session'
-import type { Flow } from '@/lib/types'
 
 const TRUST_POINTS = [
   { icon: '⚖️', text: 'No contractor referrals — ever' },
@@ -10,43 +9,31 @@ const TRUST_POINTS = [
   { icon: '⚡', text: 'Free preview before you decide anything' },
 ]
 
-const FLOWS: Array<{
-  type: Flow
-  badge: string
-  badgeClass: string
-  title: string
-  description: string
-  product: string
-  price: string
-}> = [
+const HOW_IT_WORKS = [
   {
-    type:        'pre',
-    badge:       'Pre-quote',
-    badgeClass:  'bg-blue-50 text-blue-700',
-    title:       'I have a home issue',
-    description: 'Understand the problem, severity, and cost range before calling anyone.',
-    product:     'Diagnostic Brief',
-    price:       '$14',
+    step: '01',
+    title: 'Describe your situation',
+    body: 'Tell us what\'s happening. Upload a photo or a contractor quote if you have one.',
   },
   {
-    type:        'post',
-    badge:       'Post-quote',
-    badgeClass:  'bg-green-50 text-green-700',
-    title:       'I have a quote to evaluate',
-    description: 'Find out if the scope and price are fair before you sign anything.',
-    product:     'Quote Shield',
-    price:       '$34',
+    step: '02',
+    title: 'Get a free preview',
+    body: 'Severity rating, cost range, and a key clinical insight — in under 60 seconds.',
+  },
+  {
+    step: '03',
+    title: 'Unlock the full report',
+    body: 'Complete diagnosis, contractor questions, and negotiation guidance specific to your situation.',
   },
 ]
 
 export default function HomePage() {
   const router = useRouter()
-  const { setFlow, reset } = useSessionStore()
+  const { reset } = useSessionStore()
 
-  const handleSelect = (flow: Flow) => {
+  const handleStart = () => {
     reset()
-    setFlow(flow)
-    router.push('/category')
+    router.push('/intake')
   }
 
   return (
@@ -72,8 +59,8 @@ export default function HomePage() {
           objective, on-demand, and always on your side.
         </p>
 
-        {/* Trust moment — earned before the ask */}
-        <div className="flex flex-col gap-2 mb-8 p-4 bg-white border border-brand-border rounded-xl">
+        {/* Trust moment */}
+        <div className="flex flex-col gap-2.5 mb-8 p-4 bg-white border border-brand-border rounded-xl">
           {TRUST_POINTS.map(({ icon, text }) => (
             <div key={text} className="flex items-center gap-3">
               <span className="text-base w-5 text-center flex-shrink-0" aria-hidden="true">
@@ -84,49 +71,45 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Flow cards */}
-        <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.06em] mb-3">
-          Where are you in the process?
+        {/* Single CTA — no pre/post choice, no prices */}
+        <button
+          onClick={handleStart}
+          className="btn-primary mb-3 text-base py-4"
+        >
+          Get started — it&apos;s free →
+        </button>
+        <p className="text-xs text-brand-muted text-center mb-12">
+          Free preview included · No account needed
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-          {FLOWS.map((opt) => (
-            <button
-              key={opt.type}
-              onClick={() => handleSelect(opt.type)}
-              className="card text-left hover:border-brand-border-dark active:scale-[0.99] transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-amber"
-              aria-label={`${opt.title} — ${opt.product} for ${opt.price}`}
-            >
-              <span
-                className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-3 ${opt.badgeClass}`}
-              >
-                {opt.badge}
-              </span>
-              <p className="text-[15px] font-semibold text-brand-navy mb-2">
-                {opt.title}
-              </p>
-              <p className="text-[13px] text-brand-muted leading-relaxed mb-5">
-                {opt.description}
-              </p>
-              <div className="border-t border-brand-border pt-3 flex items-baseline justify-between">
-                <span className="text-xs text-brand-muted">{opt.product}</span>
-                <span className="text-xl font-semibold text-brand-navy">
-                  {opt.price}
+
+        {/* How it works */}
+        <div className="border-t border-brand-border pt-10">
+          <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.06em] mb-6">
+            How it works
+          </p>
+          <div className="space-y-6">
+            {HOW_IT_WORKS.map(({ step, title, body }) => (
+              <div key={step} className="flex gap-4">
+                <span className="text-2xl font-bold text-brand-border leading-none flex-shrink-0 tabular-nums w-8">
+                  {step}
                 </span>
+                <div>
+                  <p className="text-sm font-semibold text-brand-navy mb-1">{title}</p>
+                  <p className="text-sm text-brand-muted leading-relaxed">{body}</p>
+                </div>
               </div>
-            </button>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Trust indicators */}
-        <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+        {/* Footer trust */}
+        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-10 pt-8 border-t border-brand-border">
           {[
             'Free preview on every issue',
             'No account needed',
             'US homeowners (v1)',
           ].map((t) => (
-            <span key={t} className="text-xs text-brand-muted">
-              {t}
-            </span>
+            <span key={t} className="text-xs text-brand-muted">{t}</span>
           ))}
         </div>
 

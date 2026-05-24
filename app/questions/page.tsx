@@ -30,11 +30,11 @@ export default function QuestionsPage() {
   const [processingMsg, setProcessingMsg] = useState('Analyzing your situation…')
   const [error, setError]                 = useState<string | null>(null)
 
-  // Guard
+  // Guard — no category page, description is the primary gate
   useEffect(() => {
-    if (!category) { router.replace('/category'); return }
     if (!description) { router.replace('/intake'); return }
-  }, [category, description, router])
+    if (!flow)        { router.replace('/intake'); return }
+  }, [description, flow, router])
 
   /**
    * Generates the preview and navigates to the preview page.
@@ -131,7 +131,7 @@ export default function QuestionsPage() {
     q => (localAnswers[q.id] ?? '').trim().length > 0,
   )
 
-  if (!flow || !category || !description) return null
+  if (!flow || !description) return null
 
   if (loadingQuestions) {
     return (
@@ -159,8 +159,8 @@ export default function QuestionsPage() {
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 3 of 4" onBack={() => router.push('/intake')} />
-        <ProgressBar step={3} total={4} />
+        <NavBar step="Step 2 of 3" onBack={() => router.push('/intake')} />
+        <ProgressBar step={2} total={3} />
 
         <div className="mb-7">
           <h2 className="text-2xl font-semibold text-brand-navy mb-2">

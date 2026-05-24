@@ -229,7 +229,7 @@ export default function PreviewPage() {
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-8">
         <NavBar onBack={() => router.push('/questions')} />
-        <ProgressBar step={4} total={4} />
+        <ProgressBar step={3} total={3} />
 
         {/* ── Free preview header ──────────────────────────────────────────── */}
         <div className="mb-5">
