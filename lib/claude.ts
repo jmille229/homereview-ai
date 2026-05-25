@@ -99,6 +99,7 @@ export async function callClaude<T>({
         {
           model:      modelId,
           max_tokens: maxTokens,
+	  temperature: 0.2,
           system:     finalSystem,
           messages:   [{ role: 'user', content: userContent }],
         },
@@ -182,8 +183,8 @@ export async function callClaudeConversation({
 
   let response: Anthropic.Message
   try {
-    response = await anthropic.messages.create(
-      { model: modelId, max_tokens: maxTokens, system, messages },
+response = await anthropic.messages.create(
+  { model: modelId, max_tokens: maxTokens, temperature: 0.7, system, messages },
       { signal: controller.signal },
     )
   } catch (err) {
