@@ -87,7 +87,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       ),
       userText:  `Follow-up question: ${sanitizedQuestion}`,
       schema:    followupResultSchema,
-      model:     'haiku',
+      model:     'sonnet',
       maxTokens: 500,
     })
   } catch (err) {

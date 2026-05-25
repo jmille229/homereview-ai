@@ -89,7 +89,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       system:  buildChatSystem(session.flow, categoryLabel, session.description, session.report),
       history: recentHistory,
       message: sanitizedMessage,
-      model:   'haiku',
+      model:   'sonnet',
       maxTokens: 600,
     })
   } catch (err) {

@@ -75,7 +75,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       userText,
       files,
       schema:    previewResultSchema,
-      model:     'haiku',
+      model:     'sonnet',
       maxTokens: 600,
     })
   } catch (err) {
