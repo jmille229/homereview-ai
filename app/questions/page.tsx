@@ -4,17 +4,16 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import type { AiQuestion, AnalyzeResponse, QuestionsResponse, UserAnswer } from '@/lib/types'
 import { getPendingFiles } from '@/lib/pendingFiles'
-import { ErrorBanner } from '@/components/ui/ErrorBanner'
-import { ProgressBar } from '@/components/ui/ProgressBar'
 
-// Static constant — defined at module scope, not inside the component,
-// so it never needs to appear in useCallback/useEffect dependency arrays.
 const PROCESSING_MESSAGES = [
   'Analyzing your situation…',
-  'Checking regional cost data…',
+  'Applying regional cost data…',
+  'Identifying the likely root cause…',
   'Preparing your free preview…',
 ]
 
@@ -28,30 +27,23 @@ export default function QuestionsPage() {
   const [localAnswers, setLocalAnswers]   = useState<Record<string, string>>({})
   const [loadingQuestions, setLoadingQ]   = useState(false)
   const [submitting, setSubmitting]       = useState(false)
-  const [processingMsg, setProcessingMsg] = useState('Analyzing your situation…')
+  const [processingMsg, setProcessingMsg] = useState(PROCESSING_MESSAGES[0])
   const [error, setError]                 = useState<string | null>(null)
 
-  // Guard — no category page, description is the primary gate
   useEffect(() => {
     if (!description) { router.replace('/intake'); return }
     if (!flow)        { router.replace('/intake'); return }
   }, [description, flow, router])
 
-  /**
-   * Generates the preview and navigates to the preview page.
-   * Wrapped in useCallback so it can safely be referenced in the
-   * questions-fetching effect without causing stale closure issues.
-   */
   const generatePreview = useCallback(async (answers: UserAnswer[]) => {
     setSubmitting(true)
     setError(null)
-
     let msgIdx = 0
     setProcessingMsg(PROCESSING_MESSAGES[0])
     const interval = setInterval(() => {
       msgIdx = (msgIdx + 1) % PROCESSING_MESSAGES.length
       setProcessingMsg(PROCESSING_MESSAGES[msgIdx])
-    }, 2000)
+    }, 2500)
 
     try {
       const files = getPendingFiles()
@@ -61,13 +53,11 @@ export default function QuestionsPage() {
         body:    JSON.stringify({ flow, category, description, zip, files, answers }),
       })
       const json: AnalyzeResponse | { error: string } = await res.json()
-
       if (!res.ok || 'error' in json) {
         setError(('error' in json ? json.error : null) ?? 'Something went wrong. Please try again.')
         setSubmitting(false)
         return
       }
-
       setAnswers(answers)
       setSessionId((json as AnalyzeResponse).sessionId)
       setPreview((json as AnalyzeResponse).preview)
@@ -80,13 +70,11 @@ export default function QuestionsPage() {
     }
   }, [flow, category, description, zip, setAnswers, setSessionId, setPreview, router])
 
-  // Fetch questions on mount — if the store already has them (e.g. back-navigation), skip.
   useEffect(() => {
     if (!flow || !category || !description) return
     if (questions.length > 0) return
 
     let cancelled = false
-
     const fetchQuestions = async () => {
       setLoadingQ(true)
       try {
@@ -96,15 +84,11 @@ export default function QuestionsPage() {
           body:    JSON.stringify({ flow, category, description }),
         })
         const json: QuestionsResponse | { error: string } = await res.json()
-
         if (cancelled) return
-
-        if (!res.ok || 'error' in json || (json as QuestionsResponse).questions.length === 0) {
-          // Question generation failed or returned nothing — skip straight to preview
+        if (!res.ok || 'error' in json || !(json as QuestionsResponse).questions.length) {
           await generatePreview([])
           return
         }
-
         setQuestions((json as QuestionsResponse).questions)
       } catch {
         if (!cancelled) await generatePreview([])
@@ -112,64 +96,81 @@ export default function QuestionsPage() {
         if (!cancelled) setLoadingQ(false)
       }
     }
-
     fetchQuestions()
-
-    // Cleanup: if the component unmounts mid-fetch, don't update state or navigate
     return () => { cancelled = true }
   }, [flow, category, description, questions.length, generatePreview, setQuestions])
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const answers: UserAnswer[] = (questions as AiQuestion[]).map(q => ({
       questionId: q.id,
       question:   q.question,
       answer:     localAnswers[q.id] ?? '',
     }))
-    await generatePreview(answers)
+    generatePreview(answers)
   }
 
   const allAnswered = (questions as AiQuestion[]).every(
-    q => (localAnswers[q.id] ?? '').trim().length > 0,
+    q => (localAnswers[q.id] ?? '').trim().length > 0
   )
 
   if (!flow || !description) return null
 
+  // ── Loading: fetching questions ───────────────────────────────────────────
+
   if (loadingQuestions) {
     return (
-      <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
-        <div className="text-center">
-          <LoadingSpinner size={28} color="#B8722E" className="mx-auto mb-4" />
-          <p className="text-sm font-medium text-brand-navy">Preparing your questions…</p>
+      <div className="min-h-screen bg-brand-bg">
+        <NavBar step="Step 2 of 3" onBack={() => router.push('/intake')} />
+        <div className="flex items-center justify-center min-h-[60vh] px-5">
+          <div className="text-center">
+            <LoadingSpinner size={28} color="#B8722E" className="mx-auto mb-4" />
+            <p className="text-sm font-semibold text-brand-navy mb-1">
+              Tailoring your questions…
+            </p>
+            <p className="text-xs text-brand-muted">
+              We generate questions specific to your situation, not a generic form.
+            </p>
+          </div>
         </div>
-      </main>
+      </div>
     )
   }
+
+  // ── Loading: generating preview ───────────────────────────────────────────
 
   if (submitting) {
     return (
-      <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
-        <div className="text-center">
-          <LoadingSpinner size={28} color="#B8722E" className="mx-auto mb-4" />
-          <p className="text-sm font-medium text-brand-navy mb-1">{processingMsg}</p>
-          <p className="text-xs text-brand-muted">Takes about 30 seconds</p>
+      <div className="min-h-screen bg-brand-bg">
+        <NavBar step="Step 2 of 3" onBack={() => router.push('/intake')} />
+        <div className="flex items-center justify-center min-h-[60vh] px-5">
+          <div className="text-center">
+            <LoadingSpinner size={28} color="#B8722E" className="mx-auto mb-4" />
+            <p className="text-sm font-semibold text-brand-navy mb-1">{processingMsg}</p>
+            <p className="text-xs text-brand-muted">Usually takes about 30 seconds</p>
+          </div>
         </div>
-      </main>
+      </div>
     )
   }
 
+  // ── Questions ─────────────────────────────────────────────────────────────
+
   return (
-    <main className="min-h-screen bg-brand-bg">
-      <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 2 of 3" onBack={() => router.push('/intake')} />
+    <div className="min-h-screen bg-brand-bg">
+      <NavBar step="Step 2 of 3" onBack={() => router.push('/intake')} />
+
+      <div className="max-w-xl mx-auto px-5 pt-8 pb-12">
         <ProgressBar step={2} total={3} />
 
-        <div className="mb-7">
-          <h2 className="text-2xl font-semibold text-brand-navy mb-2">
-            A few quick questions
-          </h2>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-brand-navy mb-2">
+            A few quick questions.
+          </h1>
           <p className="text-sm text-brand-muted leading-relaxed">
-            Your answers help us give you a more accurate analysis.
-            Answer briefly — a sentence or two is enough.
+            These are tailored specifically to your situation — your answers
+            make the analysis significantly more accurate.
+            A sentence or two per question is enough.
           </p>
         </div>
 
@@ -181,14 +182,16 @@ export default function QuestionsPage() {
           />
         )}
 
-        <div className="space-y-5 mb-8">
+        {/* Question cards */}
+        <div className="space-y-4 mb-8">
           {(questions as AiQuestion[]).map((q, i) => (
-            <div key={q.id} className="card">
+            <div key={q.id} className="bg-white border border-brand-border rounded-xl p-5">
               <label
                 htmlFor={`answer-${q.id}`}
                 className="block text-sm font-semibold text-brand-navy mb-3 leading-snug"
               >
-                {i + 1}. {q.question}
+                <span className="text-brand-amber font-bold mr-2">{i + 1}.</span>
+                {q.question}
               </label>
               <textarea
                 id={`answer-${q.id}`}
@@ -199,10 +202,10 @@ export default function QuestionsPage() {
                 maxLength={1000}
                 className="input resize-none text-sm leading-relaxed"
               />
-              <div className="flex items-center justify-between mt-1">
+              <div className="flex items-center justify-between mt-1.5">
                 <p className="text-[11px] text-brand-muted">
                   {(localAnswers[q.id] ?? '').trim().length === 0
-                    ? 'Required — a sentence or two is enough'
+                    ? 'Required — a brief answer is fine'
                     : ''}
                 </p>
                 <p className="text-[11px] text-brand-muted">
@@ -216,14 +219,14 @@ export default function QuestionsPage() {
         <button
           onClick={handleSubmit}
           disabled={!allAnswered}
-          className="btn-primary mb-2"
+          className="btn-primary text-sm py-3.5 mb-2.5"
         >
-          Get My Free Preview →
+          Get my free preview →
         </button>
-        <p className="text-xs text-brand-muted text-center">
-          Takes about 30 seconds · Free, no payment required
+        <p className="text-[11px] text-brand-muted text-center">
+          Free · No payment required · Takes about 30 seconds
         </p>
       </div>
-    </main>
+    </div>
   )
 }

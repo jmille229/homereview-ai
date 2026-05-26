@@ -196,26 +196,30 @@ function SuccessContent() {
   if (failState === 'first') {
     return (
       <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
-        <div className="max-w-sm w-full card text-center">
-          <p className="text-lg font-semibold text-brand-navy mb-2">
+        <div className="max-w-sm w-full bg-white border border-brand-border rounded-2xl p-7 text-center">
+          <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto mb-4">
+            <span className="text-lg" aria-hidden="true">⚠</span>
+          </div>
+          <p className="text-base font-bold text-brand-navy mb-2">
             Report generation failed
           </p>
           <p className="text-sm text-brand-muted mb-6 leading-relaxed">
             {failMessage ?? 'Something went wrong while building your report.'}
+            {' '}Your payment was not charged again.
           </p>
           <button
             onClick={handleRetry}
             disabled={retrying}
-            className="btn-primary flex items-center justify-center gap-2 mb-3"
+            className="btn-primary flex items-center justify-center gap-2 mb-3 text-sm py-3"
           >
             {retrying ? (
               <><LoadingSpinner size={15} color="white" /><span>Retrying…</span></>
             ) : (
-              'Try again'
+              'Try again →'
             )}
           </button>
-          <p className="text-xs text-brand-muted">
-            Your payment was processed and will not be charged again.
+          <p className="text-[11px] text-brand-muted">
+            Your payment was processed and is safe.
           </p>
         </div>
       </main>
@@ -254,16 +258,28 @@ function SuccessContent() {
 
   return (
     <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
-      <div className="text-center">
+      <div className="text-center max-w-xs">
         <div className="flex justify-center mb-6">
-          <LoadingSpinner size={36} color="#B8722E" />
+          <div className="w-14 h-14 rounded-full bg-white border border-brand-border flex items-center justify-center">
+            <LoadingSpinner size={24} color="#B8722E" />
+          </div>
         </div>
-        <p className="text-lg font-semibold text-brand-navy mb-1.5">
+        <p className="text-base font-bold text-brand-navy mb-2">
           {STATUS_MESSAGES[msgIndex]}
         </p>
-        <p className="text-sm text-brand-muted">
-          Your full report is being prepared
+        <p className="text-sm text-brand-muted mb-6 leading-relaxed">
+          We&apos;re building your full report. This usually takes
+          about 30 seconds — please don&apos;t close this page.
         </p>
+        <div className="flex items-center justify-center gap-1.5" aria-hidden="true">
+          {[
+            'animate-bounce [animation-delay:0ms]',
+            'animate-bounce [animation-delay:150ms]',
+            'animate-bounce [animation-delay:300ms]',
+          ].map((cls, i) => (
+            <div key={i} className={`w-1.5 h-1.5 rounded-full bg-brand-amber opacity-60 ${cls}`} />
+          ))}
+        </div>
       </div>
     </main>
   )

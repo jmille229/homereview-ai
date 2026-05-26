@@ -1,11 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
@@ -14,16 +15,11 @@ import {
 import { CATEGORY_LABELS } from '@/lib/constants'
 import type { CategoryId, Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
-import { InlineNotice } from '@/components/ui/InlineNotice'
-import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
 interface LocalFile {
-  name: string
-  type: AllowedMime
-  size: number
-  dataUrl: string
+  name: string; type: AllowedMime; size: number; dataUrl: string
 }
 
 const CATEGORIES: Array<{ id: CategoryId; icon: string }> = [
@@ -37,6 +33,108 @@ const CATEGORIES: Array<{ id: CategoryId; icon: string }> = [
   { id: 'maintenance', icon: '🛠️' },
 ]
 
+const FLOW_OPTIONS: Array<{
+  value: Flow; icon: string; title: string; sub: string
+}> = [
+  {
+    value: 'pre',
+    icon:  '🔍',
+    title: 'I have a home problem',
+    sub:   "I haven't contacted a contractor yet",
+  },
+  {
+    value: 'post',
+    icon:  '📋',
+    title: 'I have a quote to evaluate',
+    sub:   'I want to know if it\'s fair',
+  },
+]
+
+
+// ─── File upload area ─────────────────────────────────────────────────────────
+//
+// Defined at module scope — not inside IntakePage — so React never recreates
+// the component type on re-render. Recreating a component type inside a parent
+// causes React to unmount and remount, resetting the file input ref.
+
+interface FileUploadAreaProps {
+  prominent?:      boolean
+  fileRef:         { current: HTMLInputElement | null }
+  files:           LocalFile[]
+  fileError:       string | null
+  onFileChange:    (e: React.ChangeEvent<HTMLInputElement>) => void
+  onRemoveFile:    (i: number) => void
+}
+
+function FileUploadArea({
+  prominent,
+  fileRef,
+  files,
+  fileError,
+  onFileChange,
+  onRemoveFile,
+}: FileUploadAreaProps) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className={`w-full rounded-xl text-center transition-all cursor-pointer ${
+          prominent
+            ? 'border-2 border-dashed border-brand-navy border-opacity-40 p-6 hover:border-opacity-70 hover:bg-white'
+            : 'border border-dashed border-brand-border p-4 hover:bg-white hover:border-brand-border-dark'
+        }`}
+        aria-label="Upload files"
+      >
+        <div className="flex flex-col items-center gap-1.5">
+          <span className="text-xl" aria-hidden="true">{prominent ? '📎' : '+'}</span>
+          {prominent ? (
+            <>
+              <p className="text-sm font-semibold text-brand-navy">Upload the contractor quote</p>
+              <p className="text-xs text-brand-muted">PDF or photo — enables line-by-line analysis</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-brand-navy">Add photos or documents</p>
+              <p className="text-[11px] text-brand-muted">Photos of damage, service records</p>
+            </>
+          )}
+          <p className="text-[11px] text-brand-muted mt-1">
+            JPEG · PNG · WebP · PDF · Max 2MB each
+          </p>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept={ALLOWED_MIME_TYPES.join(',')}
+          onChange={onFileChange}
+          className="hidden"
+          aria-hidden="true"
+        />
+      </button>
+
+      {fileError && <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>}
+
+      {files.length > 0 && (
+        <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
+          {files.map((f, i) => (
+            <li key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-full text-xs text-brand-navy">
+              <span className="truncate max-w-[140px]">{f.name}</span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile(i)}
+                aria-label={`Remove ${f.name}`}
+                className="text-brand-muted hover:text-red-500 transition-colors ml-0.5"
+              >×</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function IntakePage() {
   const router = useRouter()
   const {
@@ -44,10 +142,10 @@ export default function IntakePage() {
     setFlow, setCategory, setDescription, setZip, setQuestions,
   } = useSessionStore()
 
-  const [files, setFiles]             = useState<LocalFile[]>([])
-  const [fileError, setFileError]     = useState<string | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitting, setSubmitting]         = useState(false)
+  const [files, setFiles]                     = useState<LocalFile[]>([])
+  const [fileError, setFileError]             = useState<string | null>(null)
+  const [submitError, setSubmitError]         = useState<string | null>(null)
+  const [submitting, setSubmitting]           = useState(false)
   const [descriptionTouched, setDescTouched] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -56,13 +154,12 @@ export default function IntakePage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
     const selected = Array.from(e.target.files ?? [])
-    if (selected.length === 0) return
+    if (!selected.length) return
 
     if (files.length + selected.length > MAX_FILES_PER_REQUEST) {
       setFileError(`Maximum ${MAX_FILES_PER_REQUEST} files allowed.`)
       return
     }
-
     const validated: LocalFile[] = []
     for (const file of selected) {
       if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
@@ -85,30 +182,21 @@ export default function IntakePage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const removeFile = (index: number) =>
-    setFiles(prev => prev.filter((_, i) => i !== index))
+  const removeFile = (i: number) => setFiles(prev => prev.filter((_, j) => j !== i))
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const handleSubmit = () => {
-    if (!flow) {
-      setSubmitError('Please tell us whether you have a quote yet.')
-      return
-    }
-    if (!category) {
-      setSubmitError('Please select the area of your home.')
-      return
-    }
+    if (!flow) { setSubmitError('Please select where you are in the process.'); return }
+    if (!category) { setSubmitError('Please select the area of your home.'); return }
+    if (description.trim().length < 20) { setSubmitError('Please describe the situation in a bit more detail.'); return }
+
     setSubmitError(null)
     setSubmitting(true)
-
-    const uploadedFiles: UploadedFile[] = files.map(f => ({
-      name: f.name,
-      type: f.type,
-      size: f.size,
+    savePendingFiles(files.map(f => ({
+      name: f.name, type: f.type, size: f.size,
       data: f.dataUrl.split(',')[1] ?? '',
-    }))
-    savePendingFiles(uploadedFiles)
+    }) as UploadedFile))
     setQuestions([])
     router.push('/questions')
   }
@@ -118,28 +206,29 @@ export default function IntakePage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen bg-brand-bg">
-      <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar step="Step 1 of 3" onBack={() => router.push('/')} />
+    <div className="min-h-screen bg-brand-bg">
+      <NavBar step="Step 1 of 3" onBack={() => router.push('/')} />
+
+      <div className="max-w-xl mx-auto px-5 pt-8 pb-12">
         <ProgressBar step={1} total={3} />
 
-        <h2 className="text-2xl font-semibold text-brand-navy mb-1.5">
-          Describe your situation
-        </h2>
-        <p className="text-sm text-brand-muted mb-7">
-          Tell us what&apos;s happening. The more detail, the better.
-        </p>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-brand-navy mb-2">
+            Tell us what&apos;s going on.
+          </h1>
+          <p className="text-sm text-brand-muted leading-relaxed">
+            The more specific you are, the more useful your free preview will be.
+          </p>
+        </div>
 
-        {/* ── Pre/post — asked once, in context ──────────────────────────── */}
-        <div className="mb-6">
-          <p className="section-label">Where are you in the process?</p>
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                { value: 'pre'  as Flow, label: 'I have a home issue',    sub: 'No contractor contacted yet' },
-                { value: 'post' as Flow, label: 'I have a quote to review', sub: 'I want to evaluate it' },
-              ] as const
-            ).map(({ value, label, sub }) => (
+        {/* ── Step 1: Where are you in the process? ────────────────────── */}
+        <div className="mb-7">
+          <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
+            Where are you right now?
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {FLOW_OPTIONS.map(({ value, icon, title, sub }) => (
               <button
                 key={value}
                 type="button"
@@ -151,72 +240,53 @@ export default function IntakePage() {
                     : 'border-brand-border bg-white hover:border-brand-border-dark'
                 }`}
               >
-                <p className={`text-sm font-semibold mb-0.5 ${flow === value ? 'text-brand-navy' : 'text-brand-muted'}`}>
-                  {label}
-                </p>
-                <p className="text-xs text-brand-muted">{sub}</p>
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <span className="text-lg" aria-hidden="true">{icon}</span>
+                  <p className={`text-sm font-semibold leading-tight ${
+                    flow === value ? 'text-brand-navy' : 'text-brand-muted'
+                  }`}>
+                    {title}
+                  </p>
+                </div>
+                <p className="text-xs text-brand-muted pl-8">{sub}</p>
+                {flow === value && (
+                  <div className="mt-2.5 pl-8">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-amber">
+                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+                        <circle cx="4" cy="4" r="3.5" fill="#B8722E"/>
+                      </svg>
+                      Selected
+                    </span>
+                  </div>
+                )}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── Post-quote: file upload FIRST — it's the primary input ──────── */}
+        {/* ── Post-quote: quote upload first ───────────────────────────── */}
         {flow === 'post' && (
-          <div className="mb-5">
-            <p className="section-label">Upload the contractor quote</p>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="w-full border-2 border-dashed border-brand-navy border-opacity-30 rounded-xl p-6 text-center hover:bg-white hover:border-opacity-60 transition-all cursor-pointer"
-              aria-label="Upload contractor quote"
-            >
-              <p className="text-sm font-semibold text-brand-navy mb-1">
-                Upload PDF or photo of the quote
-              </p>
-              <p className="text-xs text-brand-muted">
-                Uploading the actual quote gives you line-by-line analysis
-              </p>
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                accept={ALLOWED_MIME_TYPES.join(',')}
-                onChange={handleFileChange}
-                className="hidden"
-                aria-hidden="true"
-              />
-            </button>
-
-            {fileError && (
-              <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
-            )}
-            {files.length > 0 && (
-              <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
-                {files.map((f, i) => (
-                  <li
-                    key={i}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-md text-xs text-brand-navy"
-                  >
-                    <span className="truncate max-w-[160px]">{f.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(i)}
-                      aria-label={`Remove ${f.name}`}
-                      className="text-brand-muted hover:text-brand-navy ml-1"
-                    >×</button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="mb-7">
+            <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
+              Upload the contractor quote
+            </p>
+            <FileUploadArea prominent fileRef={fileRef} files={files} fileError={fileError} onFileChange={handleFileChange} onRemoveFile={removeFile} />
+            <p className="text-[11px] text-brand-muted mt-2 leading-relaxed">
+              Uploading the actual quote document enables line-by-line pricing analysis.
+              Text description alone gives you a less specific assessment.
+            </p>
           </div>
         )}
 
-        {/* ── Description ────────────────────────────────────────────────── */}
-        <div className="mb-5">
-          <label htmlFor="description" className="section-label">
+        {/* ── Description ──────────────────────────────────────────────── */}
+        <div className="mb-7">
+          <label
+            htmlFor="description"
+            className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3 block"
+          >
             {flow === 'post'
               ? 'Describe the situation and what the contractor told you'
-              : "What's happening?"}
+              : 'Describe what you\'re seeing'}
           </label>
           <textarea
             id="description"
@@ -227,92 +297,42 @@ export default function IntakePage() {
             maxLength={4000}
             placeholder={
               flow === 'post'
-                ? 'e.g. My AC stopped cooling. A contractor quoted $3,200 for full replacement. The unit is 8 years old. I\'m not sure if replacement is really necessary.'
-                : 'e.g. My furnace runs but shuts off after about 2 minutes. The house is getting cold. The unit is 12 years old and has never been serviced.'
+                ? "e.g. My AC stopped cooling. A contractor quoted $3,200 for a full replacement. The unit is 8 years old. I'm not sure replacement is really necessary — it seemed to stop suddenly."
+                : "e.g. My furnace runs but shuts off after 2 minutes. The house is getting cold. The unit is 12 years old and has never been serviced. I hear a clicking noise before it stops."
             }
-            className="input resize-y leading-relaxed"
-            aria-describedby="desc-count"
+            className="input resize-y leading-relaxed text-sm"
+            aria-describedby="desc-hint"
           />
-          <div className="flex items-center justify-between mt-1">
-            {descriptionTouched && description.trim().length < 20 && description.length > 0 ? (
-              <InlineNotice
-                variant="error"
-                message="Please provide at least a sentence or two so we can give you a useful analysis."
-              />
-            ) : descriptionTouched && description.trim().length === 0 ? (
-              <InlineNotice
-                variant="error"
-                message="A description is required."
-              />
-            ) : (
-              <InlineNotice
-                variant="hint"
-                message="More detail = more accurate analysis. Include duration, symptoms, and any prior repairs."
-              />
-            )}
+          <div id="desc-hint" className="flex items-start justify-between mt-1.5">
+            <p className="text-[11px] text-brand-muted leading-relaxed">
+              {descriptionTouched && description.trim().length > 0 && description.trim().length < 20
+                ? '⚠ Please add a bit more detail for an accurate analysis.'
+                : 'Include duration, symptoms, and any prior repairs — the more context, the better.'}
+            </p>
             <p className="text-[11px] text-brand-muted ml-3 flex-shrink-0">
               {description.length}/4000
             </p>
           </div>
         </div>
 
-        {/* ── Pre-quote: file upload secondary ────────────────────────────── */}
+        {/* ── Pre-quote: optional file upload ──────────────────────────── */}
         {flow === 'pre' && (
-          <div className="mb-5">
-            <label className="section-label">
+          <div className="mb-7">
+            <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
               Photos or documents{' '}
-              <span className="font-normal normal-case tracking-normal text-brand-muted">
-                (optional — helpful for visible damage)
+              <span className="font-normal normal-case tracking-normal">
+                — optional, helpful for visible damage
               </span>
-            </label>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="w-full border border-dashed border-brand-border-dark rounded-xl p-4 text-center hover:bg-white transition-colors cursor-pointer"
-              aria-label="Upload files"
-            >
-              <p className="text-sm font-medium text-brand-navy mb-0.5">Tap to upload</p>
-              <p className="text-xs text-brand-muted">
-                Photos of damage, service records, appliance manuals
-              </p>
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                accept={ALLOWED_MIME_TYPES.join(',')}
-                onChange={handleFileChange}
-                className="hidden"
-                aria-hidden="true"
-              />
-            </button>
-
-            {fileError && (
-              <p role="alert" className="text-xs text-red-600 mt-2">{fileError}</p>
-            )}
-            {files.length > 0 && (
-              <ul className="flex flex-wrap gap-2 mt-3" aria-label="Uploaded files">
-                {files.map((f, i) => (
-                  <li
-                    key={i}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-brand-border rounded-md text-xs text-brand-navy"
-                  >
-                    <span className="truncate max-w-[160px]">{f.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(i)}
-                      aria-label={`Remove ${f.name}`}
-                      className="text-brand-muted hover:text-brand-navy ml-1"
-                    >×</button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            </p>
+            <FileUploadArea fileRef={fileRef} files={files} fileError={fileError} onFileChange={handleFileChange} onRemoveFile={removeFile} />
           </div>
         )}
 
-        {/* ── Category — inline pill selector ─────────────────────────────── */}
-        <div className="mb-5">
-          <p className="section-label">Area of the home</p>
+        {/* ── Category ─────────────────────────────────────────────────── */}
+        <div className="mb-7">
+          <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
+            Area of the home
+          </p>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(({ id, icon }) => (
               <button
@@ -333,12 +353,15 @@ export default function IntakePage() {
           </div>
         </div>
 
-        {/* ── Zip code ─────────────────────────────────────────────────────── */}
-        <div className="mb-7">
-          <label htmlFor="zip" className="section-label">
-            Zip code{' '}
-            <span className="font-normal normal-case tracking-normal text-brand-muted">
-              (for regional cost data)
+        {/* ── Zip code ─────────────────────────────────────────────────── */}
+        <div className="mb-8">
+          <label
+            htmlFor="zip"
+            className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3 block"
+          >
+            Zip code
+            <span className="font-normal normal-case tracking-normal text-brand-muted ml-1">
+              — for regional cost data
             </span>
           </label>
           <input
@@ -365,31 +388,30 @@ export default function IntakePage() {
           )}
         </div>
 
-        {submitError && (
-          <ErrorBanner message={submitError} />
-        )}
-
-        {/* Passive disclaimer — visible before any payment, low friction */}
-        <p className="text-[11px] text-brand-muted leading-relaxed mb-5 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
+        {/* ── Disclaimer ───────────────────────────────────────────────── */}
+        <p className="text-[11px] text-brand-muted leading-relaxed mb-6 px-4 py-3 bg-white border border-brand-border rounded-xl">
           By continuing, you acknowledge that HomeReview AI provides general informational
           analysis only — not professional contractor, engineering, or legal advice.
-          Always consult a licensed professional before undertaking major repairs.
+          Always consult a licensed professional before major repairs.
         </p>
+
+        {/* ── Error + Submit ────────────────────────────────────────────── */}
+        {submitError && <ErrorBanner message={submitError} />}
 
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="btn-primary mb-2 flex items-center justify-center gap-2"
+          className="btn-primary flex items-center justify-center gap-2 text-sm py-3.5"
         >
           {submitting
             ? <><LoadingSpinner size={16} color="white" /><span>Continuing…</span></>
             : 'Continue →'
           }
         </button>
-        <p className="text-xs text-brand-muted text-center">
+        <p className="text-[11px] text-brand-muted text-center mt-2.5">
           Free preview included · No payment required
         </p>
       </div>
-    </main>
+    </div>
   )
 }
