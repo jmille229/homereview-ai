@@ -352,6 +352,17 @@ export default function IntakePage() {
             className="input"
             style={{ maxWidth: 160 }}
           />
+          {zip.length === 0 && (
+            <p className="text-[11px] text-brand-muted mt-1.5">
+              Without a zip code, cost estimates use national medians and may be
+              $1,000–$3,000+ off for your area.
+            </p>
+          )}
+          {zip.length > 0 && zip.length < 5 && (
+            <p className="text-[11px] text-red-500 mt-1.5">
+              Enter all 5 digits for regional accuracy.
+            </p>
+          )}
         </div>
 
         {submitError && (

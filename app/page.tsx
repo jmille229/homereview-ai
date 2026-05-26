@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSessionStore } from '@/store/session'
 
@@ -40,12 +41,22 @@ export default function HomePage() {
     <main className="min-h-screen bg-brand-bg">
       <div className="max-w-xl mx-auto px-5 py-10 sm:py-16">
 
-        {/* Wordmark */}
-        <div className="flex items-center gap-2 mb-12">
-          <div className="w-2 h-2 rounded-full bg-brand-amber" aria-hidden="true" />
-          <span className="text-xs font-semibold text-brand-amber tracking-[0.08em]">
-            HOMEREVIEW
-          </span>
+        {/* Wordmark + nav */}
+        <div className="flex items-center justify-between mb-12">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-brand-amber" aria-hidden="true" />
+            <span className="text-xs font-semibold text-brand-amber tracking-[0.08em]">
+              HOMEREVIEW
+            </span>
+          </div>
+          <nav className="flex items-center gap-5" aria-label="Site navigation">
+            <Link href="/learn" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">
+              Learn
+            </Link>
+            <Link href="/about" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">
+              About
+            </Link>
+          </nav>
         </div>
 
         {/* Hero */}
@@ -115,9 +126,7 @@ export default function HomePage() {
         <p className="text-[11px] text-brand-muted leading-relaxed">
           HomeReview AI provides general informational analysis only — not professional
           contractor, engineering, or legal advice. See our{' '}
-          <a href="/terms" className="underline underline-offset-2 hover:text-brand-navy transition-colors">
-            terms of service
-          </a>
+<a href="/terms" className="underline underline-offset-2 hover:text-brand-navy transition-colors">terms of service</a>
           {' '}for full disclaimer and limitation of liability.
         </p>
 
