@@ -103,7 +103,7 @@ export default function HomePage() {
         </div>
 
         {/* Footer trust */}
-        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-10 pt-8 border-t border-brand-border">
+        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-10 pt-8 border-t border-brand-border mb-5">
           {[
             'Free preview on every issue',
             'No account needed',
@@ -112,6 +112,14 @@ export default function HomePage() {
             <span key={t} className="text-xs text-brand-muted">{t}</span>
           ))}
         </div>
+        <p className="text-[11px] text-brand-muted leading-relaxed">
+          HomeReview AI provides general informational analysis only — not professional
+          contractor, engineering, or legal advice. See our{' '}
+          <a href="/terms" className="underline underline-offset-2 hover:text-brand-navy transition-colors">
+            terms of service
+          </a>
+          {' '}for full disclaimer and limitation of liability.
+        </p>
 
       </div>
     </main>

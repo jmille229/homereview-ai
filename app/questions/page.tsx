@@ -7,6 +7,7 @@ import { NavBar } from '@/components/ui/NavBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import type { AiQuestion, AnalyzeResponse, QuestionsResponse, UserAnswer } from '@/lib/types'
 import { getPendingFiles } from '@/lib/pendingFiles'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 
 // Static constant — defined at module scope, not inside the component,
@@ -173,9 +174,11 @@ export default function QuestionsPage() {
         </div>
 
         {error && (
-          <div role="alert" className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-xs text-red-700">{error}</p>
-          </div>
+          <ErrorBanner
+            title="Analysis failed"
+            message={error}
+            onRetry={allAnswered ? handleSubmit : undefined}
+          />
         )}
 
         <div className="space-y-5 mb-8">
@@ -196,9 +199,16 @@ export default function QuestionsPage() {
                 maxLength={1000}
                 className="input resize-none text-sm leading-relaxed"
               />
-              <p className="text-[11px] text-brand-muted mt-1 text-right">
-                {(localAnswers[q.id] ?? '').length}/1000
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[11px] text-brand-muted">
+                  {(localAnswers[q.id] ?? '').trim().length === 0
+                    ? 'Required — a sentence or two is enough'
+                    : ''}
+                </p>
+                <p className="text-[11px] text-brand-muted">
+                  {(localAnswers[q.id] ?? '').length}/1000
+                </p>
+              </div>
             </div>
           ))}
         </div>

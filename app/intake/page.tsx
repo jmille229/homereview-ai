@@ -14,6 +14,8 @@ import {
 import { CATEGORY_LABELS } from '@/lib/constants'
 import type { CategoryId, Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
+import { InlineNotice } from '@/components/ui/InlineNotice'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -45,7 +47,8 @@ export default function IntakePage() {
   const [files, setFiles]             = useState<LocalFile[]>([])
   const [fileError, setFileError]     = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitting, setSubmitting]   = useState(false)
+  const [submitting, setSubmitting]         = useState(false)
+  const [descriptionTouched, setDescTouched] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // ── File handling ─────────────────────────────────────────────────────────
@@ -219,6 +222,7 @@ export default function IntakePage() {
             id="description"
             value={description}
             onChange={e => setDescription(e.target.value)}
+            onBlur={() => setDescTouched(true)}
             rows={6}
             maxLength={4000}
             placeholder={
@@ -229,9 +233,27 @@ export default function IntakePage() {
             className="input resize-y leading-relaxed"
             aria-describedby="desc-count"
           />
-          <p id="desc-count" className="text-[11px] text-brand-muted mt-1 text-right">
-            {description.length}/4000
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            {descriptionTouched && description.trim().length < 20 && description.length > 0 ? (
+              <InlineNotice
+                variant="error"
+                message="Please provide at least a sentence or two so we can give you a useful analysis."
+              />
+            ) : descriptionTouched && description.trim().length === 0 ? (
+              <InlineNotice
+                variant="error"
+                message="A description is required."
+              />
+            ) : (
+              <InlineNotice
+                variant="hint"
+                message="More detail = more accurate analysis. Include duration, symptoms, and any prior repairs."
+              />
+            )}
+            <p className="text-[11px] text-brand-muted ml-3 flex-shrink-0">
+              {description.length}/4000
+            </p>
+          </div>
         </div>
 
         {/* ── Pre-quote: file upload secondary ────────────────────────────── */}
@@ -333,10 +355,15 @@ export default function IntakePage() {
         </div>
 
         {submitError && (
-          <div role="alert" className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-xs text-red-700">{submitError}</p>
-          </div>
+          <ErrorBanner message={submitError} />
         )}
+
+        {/* Passive disclaimer — visible before any payment, low friction */}
+        <p className="text-[11px] text-brand-muted leading-relaxed mb-5 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
+          By continuing, you acknowledge that HomeReview AI provides general informational
+          analysis only — not professional contractor, engineering, or legal advice.
+          Always consult a licensed professional before undertaking major repairs.
+        </p>
 
         <button
           onClick={handleSubmit}

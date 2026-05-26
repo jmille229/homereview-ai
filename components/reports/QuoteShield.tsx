@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { NavBar } from '@/components/ui/NavBar'
 import { ChatInterface } from '@/components/ui/ChatInterface'
+import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
 import type {
@@ -657,13 +658,8 @@ export function QuoteShield({
           </div>
         </div>
 
-        {/* Disclaimer */}
-        <div className="mt-4 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
-          <p className="text-[11px] text-brand-muted leading-relaxed">
-            HomeReview AI provides informational analysis, not licensed professional advice.
-            This report is for guidance only and does not constitute legal or financial advice.
-          </p>
-        </div>
+        {/* Full legal disclaimer — always shown on report pages */}
+        <DisclaimerFooter />
       </div>
     </main>
   )

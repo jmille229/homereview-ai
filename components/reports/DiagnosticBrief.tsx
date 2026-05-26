@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { NavBar } from '@/components/ui/NavBar'
 import { ChatInterface } from '@/components/ui/ChatInterface'
 import type { ChatMessage, DiagnosticBriefReport } from '@/lib/types'
+import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 
 interface Props {
   report: DiagnosticBriefReport | undefined
@@ -259,15 +260,8 @@ export function DiagnosticBrief({
           </div>
         </div>
 
-        {/* Disclaimer */}
-        {!reportFailed && (
-          <div className="mt-4 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
-            <p className="text-[11px] text-brand-muted leading-relaxed">
-              HomeReview AI provides informational analysis, not licensed professional advice.
-              Consult a qualified professional before making repair decisions.
-            </p>
-          </div>
-        )}
+        {/* Full legal disclaimer — always shown on report pages */}
+        <DisclaimerFooter />
       </div>
     </main>
   )
