@@ -1,39 +1,59 @@
-// ─── Domain types ─────────────────────────────────────────────────────────────
+/**
+ * lib/types.ts — Application type definitions.
+ *
+ * Import hierarchy (no cycles):
+ *   enums.ts      → (nothing)
+ *   validators.ts → enums.ts
+ *   types.ts      → enums.ts + validators.ts
+ *   everything    → types.ts
+ *
+ * AI-output report types (DiagnosticBriefReport, QuoteShieldReport,
+ * PreviewResult) are derived from Zod schemas via z.infer so that
+ * validators.ts is the single source of truth for their shape.
+ * Adding or removing a field in the schema automatically updates the type —
+ * no manual synchronisation required.
+ *
+ * Non-AI-output types (StoredSession, ChatMessage, ReportUpdate, etc.) are
+ * defined as interfaces here because they are produced by the application,
+ * not validated from AI output.
+ */
 
-export type Flow = 'pre' | 'post'
+import type { z } from 'zod'
+import type {
+  diagnosticBriefSchema,
+  previewResultSchema,
+  quoteShieldSchema,
+} from './validators'
 
-export type CategoryId =
-  | 'hvac'
-  | 'plumbing'
-  | 'electrical'
-  | 'roofing'
-  | 'foundation'
-  | 'appliances'
-  | 'pest'
-  | 'maintenance'
+// ─── Re-export all enums for backward compatibility ───────────────────────────
+//
+// All other files in the codebase import from '@/lib/types'. Re-exporting
+// ensures no import paths need to change — the refactor is fully internal.
 
-export type Severity = 'Emergency' | 'Urgent' | 'Monitor' | 'Cosmetic'
-export type DiyFeasibility = 'None' | 'Low' | 'Medium' | 'High'
-export type ScopeVerdict = 'Matches Problem' | 'Partial Match' | 'Scope Mismatch'
-export type PricingVerdict = 'Fair' | 'High End' | 'Inflated'
-export type Product = 'brief' | 'shield' | 'bundle'
+export type {
+  AllowedMimeType,
+  CategoryId,
+  DiagnosisVerdict,
+  DiyFeasibility,
+  Flow,
+  PricingVerdict,
+  Product,
+  ReportStatus,
+  ScopeVerdict,
+  Severity,
+  UpdateType,
+} from './enums'
 
 // ─── File upload ──────────────────────────────────────────────────────────────
 
-export type AllowedMimeType =
-  | 'image/jpeg'
-  | 'image/png'
-  | 'image/webp'
-  | 'application/pdf'
-
 export interface UploadedFile {
   name: string
-  type: AllowedMimeType
+  type: import('./enums').AllowedMimeType
   size: number   // bytes
   data: string   // base64 encoded (no data URL prefix)
 }
 
-// ─── Clarifying questions (Step 3 of the intake flow) ────────────────────────
+// ─── Clarifying questions (Step 2 of the intake flow) ────────────────────────
 
 export interface AiQuestion {
   id: string       // stable identifier for pairing with answers
@@ -60,98 +80,59 @@ export interface FollowupMessage {
   timestamp: string
 }
 
-// ─── AI response shapes ───────────────────────────────────────────────────────
+// ─── AI-output derived types (single source of truth: validators.ts) ─────────
+//
+// These use z.infer so the schema IS the type definition. The Zod schema
+// in validators.ts governs both runtime validation and the static type.
 
-export interface PreviewResult {
-  summary: string
-  severity: Severity
-  severityReason: string
-  costMin: number
-  costMax: number
-  keyInsight: string
-}
+/** Free preview shown before purchase. Derived from previewResultSchema. */
+export type PreviewResult = z.infer<typeof previewResultSchema>
 
-export interface DiagnosticBriefReport {
-  diagnosis: string
-  urgencyTimeline: string
-  diyFeasibility: DiyFeasibility
-  diyDetails: string
-  contractorType: string
-  licenseRequired: string
-  verifyCredentials: string[]
-  costFactors: string[]
-  questionsToAsk: Array<{ question: string; whyItMatters: string }>
-  redFlags: string[]
-  insistOnWriting: string[]
-}
+/** Full pre-quote report. Derived from diagnosticBriefSchema. */
+export type DiagnosticBriefReport = z.infer<typeof diagnosticBriefSchema>
 
-export interface QuoteShieldReport {
-  scopeVerdict: ScopeVerdict
-  scopeAnalysis: string
-  pricingVerdict: PricingVerdict
-  pricingAnalysis: string
-  estimatedFairMin: number
-  estimatedFairMax: number
-  upsells: Array<{ item: string; amount: number; reason: string }>
-  missingItems: string[]
-  redFlags: string[]
-  greenFlags: string[]
-  negotiationGuide: string
-  contractorQuestions: Array<{
-    question: string
-    goodAnswer: string
-    concerningAnswer: string
-  }>
-  getSecondQuote: boolean
-  secondQuoteReason: string
-  beforeYouSign: string[]
-  updates: ReportUpdate[]
-}
+/**
+ * Full post-quote report. Derived from quoteShieldSchema plus the `updates`
+ * field, which is application-managed (not AI-output) and therefore not in
+ * the Zod schema.
+ */
+export type QuoteShieldReport =
+  z.infer<typeof quoteShieldSchema> & { updates: ReportUpdate[] }
+
+// ─── Application-managed types (not AI-output) ────────────────────────────────
 
 export interface ReportUpdate {
   timestamp: string
-  updateType: UpdateType
+  updateType: import('./enums').UpdateType
   changedSections: string[]
   summary: string
 }
-
-export type UpdateType =
-  | 'new_quote'
-  | 'revised_quote'
-  | 'contract'
-  | 'invoice'
-  | 'note'
-  | 'photo'
 
 // ─── Session (stored in Redis) ────────────────────────────────────────────────
 
 /**
  * Report generation lifecycle:
- *   undefined  → session created before payment (preview stage)
+ *   undefined    → session created before payment (preview stage)
  *   'generating' → payment verified, waitUntil running generation
  *   'complete'   → report saved to Redis, ready to view
  *   'failed'     → generation failed, user should contact support
  */
-export type ReportStatus = 'generating' | 'complete' | 'failed'
-
 export interface StoredSession {
   id: string
-  flow: Flow
-  category: CategoryId
+  flow: import('./enums').Flow
+  category: import('./enums').CategoryId
   description: string
   zip: string
-  answers: UserAnswer[]          // clarifying question answers
+  answers: UserAnswer[]
   preview: PreviewResult
   paid: boolean
   paidAt?: string
-  product?: Product
-  reportStatus?: ReportStatus    // async generation lifecycle
+  product?: import('./enums').Product
+  reportStatus?: import('./enums').ReportStatus
   report?: DiagnosticBriefReport | QuoteShieldReport
-  reportError?: string           // populated on 'failed' status
-  // Pre-purchase follow-up Q&A (max 2 free)
+  reportError?: string
   followupCount: number
   followupMessages: FollowupMessage[]
-  // Post-purchase chat
   chatMessages: ChatMessage[]
   createdAt: string
   updatedAt: string
@@ -160,8 +141,8 @@ export interface StoredSession {
 // ─── API request / response shapes ───────────────────────────────────────────
 
 export interface QuestionsRequest {
-  flow: Flow
-  category: CategoryId
+  flow: import('./enums').Flow
+  category: import('./enums').CategoryId
   description: string
 }
 
@@ -170,12 +151,12 @@ export interface QuestionsResponse {
 }
 
 export interface AnalyzeRequest {
-  flow: Flow
-  category: CategoryId
+  flow: import('./enums').Flow
+  category: import('./enums').CategoryId
   description: string
   zip: string
   files: UploadedFile[]
-  answers: UserAnswer[]   // clarifying answers included in analysis context
+  answers: UserAnswer[]
 }
 
 export interface AnalyzeResponse {
@@ -210,11 +191,11 @@ export interface GenerateReportRequest {
 export interface GenerateReportResponse {
   status: 'generating'
   sessionId: string
-  product: Product
+  product: import('./enums').Product
 }
 
 export interface ReportStatusResponse {
-  status: ReportStatus
+  status: import('./enums').ReportStatus
   /** Populated when status === 'complete'. The path to navigate to. */
   reportPath?: string
   /** Populated when status === 'failed'. */
@@ -223,7 +204,7 @@ export interface ReportStatusResponse {
 
 export interface UpdateReportRequest {
   sessionId: string
-  updateType: UpdateType
+  updateType: import('./enums').UpdateType
   files: UploadedFile[]
   note?: string
 }
@@ -234,7 +215,7 @@ export interface UpdateReportResponse {
 
 export interface CheckoutRequest {
   sessionId: string
-  product: Product
+  product: import('./enums').Product
 }
 
 export interface CheckoutResponse {

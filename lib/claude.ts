@@ -97,11 +97,12 @@ export async function callClaude<T>({
     try {
       response = await anthropic.messages.create(
         {
-          model:      modelId,
-          max_tokens: maxTokens,
-	  temperature: 0.2,
-          system:     finalSystem,
-          messages:   [{ role: 'user', content: userContent }],
+          model:       modelId,
+          max_tokens:  maxTokens,
+          temperature: 0.2,  // low temperature for structured JSON output — reduces variance,
+                             // prevents ignoring prompt prohibitions (e.g. asking what quote states)
+          system:      finalSystem,
+          messages:    [{ role: 'user', content: userContent }],
         },
         { signal: controller.signal },
       )
@@ -183,8 +184,14 @@ export async function callClaudeConversation({
 
   let response: Anthropic.Message
   try {
-response = await anthropic.messages.create(
-  { model: modelId, max_tokens: maxTokens, temperature: 0.7, system, messages },
+    response = await anthropic.messages.create(
+      {
+        model:       modelId,
+        max_tokens:  maxTokens,
+        temperature: 0.7,  // higher temperature for conversational chat — natural variation is desirable
+        system,
+        messages,
+      },
       { signal: controller.signal },
     )
   } catch (err) {

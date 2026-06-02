@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type {
   AllowedMimeType,
   CategoryId,
+  DiagnosisVerdict,
   DiyFeasibility,
   Flow,
   PricingVerdict,
@@ -9,7 +10,7 @@ import type {
   Severity,
   ScopeVerdict,
   UpdateType,
-} from './types'
+} from './enums'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,10 @@ export const questionsRequestSchema = z.object({
   flow:        z.enum(['pre', 'post'] as [Flow, Flow]),
   category:    z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]),
   description: z.string().min(20).max(4000),
+  // For post-quote flow, the uploaded contractor quote document is included
+  // so Claude can read the quote directly before generating clarifying questions.
+  // This prevents asking the homeowner to describe what the quote already states.
+  files:       z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST).optional(),
 })
 
 export const analyzeRequestSchema = z.object({
@@ -130,12 +135,15 @@ export const checkoutRequestSchema = z.object({
 // a list.
 
 export const questionsResultSchema = z.object({
+  // min(0): post-quote flow with a clear uploaded document may produce 0 questions
+  // legitimately — the document already answers what we'd ask. The prompt controls
+  // the target count per flow; the schema enforces structural validity only.
   questions: z.array(
     z.object({
       id:       z.string().min(1),
       question: z.string().min(10).max(300),
     })
-  ).min(2).max(4),
+  ).min(0).max(4),
 })
 
 export const previewResultSchema = z.object({
@@ -173,6 +181,8 @@ export const diagnosticBriefSchema = z.object({
 })
 
 export const quoteShieldSchema = z.object({
+  diagnosisVerdict:    z.enum(['Sound', 'Questionable', 'Unsupported'] as [DiagnosisVerdict, DiagnosisVerdict, DiagnosisVerdict]),
+  diagnosisAnalysis:   z.string().min(20),
   scopeVerdict:        z.enum(['Matches Problem', 'Partial Match', 'Scope Mismatch'] as [ScopeVerdict, ScopeVerdict, ScopeVerdict]),
   scopeAnalysis:       z.string().min(20),
   pricingVerdict:      z.enum(['Fair', 'High End', 'Inflated'] as [PricingVerdict, PricingVerdict, PricingVerdict]),
