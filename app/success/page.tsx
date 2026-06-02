@@ -3,7 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import type { GenerateReportResponse, ReportStatusResponse } from '@/lib/types'
+import type { GenerateReportResponse, ReportStatusResponse, UploadedFile } from '@/lib/types'
+import { getPendingFiles, clearPendingFiles } from '@/lib/pendingFiles'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,9 @@ function SuccessContent() {
   const pollTimeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
   const initiatedRef    = useRef(false)
   const attemptRef      = useRef(0)
+  // Capture files at mount time. sessionStorage may be cleared by the time
+  // a retry occurs, so we hold a reference for the lifetime of this page.
+  const filesRef        = useRef<UploadedFile[]>([])
 
   const stripeSessionId = params.get('stripe_session_id')
   const product         = params.get('product')
@@ -115,7 +119,12 @@ function SuccessContent() {
       const res  = await fetch('/api/report', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ stripeSessionId }),
+        body:    JSON.stringify({
+          stripeSessionId,
+          // Re-send files on retry — held in ref since sessionStorage
+          // may have been cleared between the initial attempt and the retry.
+          files: filesRef.current,
+        }),
       })
       const json = await res.json() as GenerateReportResponse | { error: string }
 
@@ -149,13 +158,21 @@ function SuccessContent() {
     initiatedRef.current = true
     attemptRef.current   = 1
 
+    // Capture files now — sessionStorage is still intact at this point.
+    // We clear them after capturing so they don't persist beyond this session.
+    filesRef.current = getPendingFiles()
+    clearPendingFiles()
+
     const initiate = async () => {
       let sessionId: string
       try {
         const res  = await fetch('/api/report', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ stripeSessionId }),
+          body:    JSON.stringify({
+            stripeSessionId,
+            files: filesRef.current,
+          }),
         })
         const json = await res.json() as GenerateReportResponse | { error: string }
 

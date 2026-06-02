@@ -25,9 +25,23 @@ const INJECTION_GUARD =
 // ─── Preview prompt ───────────────────────────────────────────────────────────
 
 export function buildPreviewSystem(flow: Flow, categoryLabel: string): string {
-  const flowContext = flow === 'pre'
+  const isPre = flow === 'pre'
+
+  const flowContext = isPre
     ? 'The homeowner has NOT yet contacted a contractor. Analyze the issue description and any uploaded photos or documents.'
     : 'The homeowner HAS received a contractor quote. Analyze both the issue description and the uploaded quote materials.'
+
+  const costMinInstruction = isPre
+    ? 'regional low-end cost to repair this specific issue in USD — integer, no formatting'
+    : 'low end of the fair market range for the quoted scope in this region — integer, no formatting'
+
+  const costMaxInstruction = isPre
+    ? 'regional high-end cost to repair this specific issue in USD — integer, no formatting'
+    : 'high end of the fair market range for the quoted scope in this region — integer, no formatting'
+
+  const keyInsightInstruction = isPre
+    ? 'One specific, high-value clinical observation: the most important thing the homeowner needs to know before contacting any contractor. Reference the likely root cause, not just the visible symptom.'
+    : 'One specific finding about this quote: pricing fairness, scope completeness, or a concern the homeowner must address before signing. Be direct and specific.'
 
   return `${INJECTION_GUARD}
 
@@ -43,11 +57,9 @@ Required schema:
   "summary": "2-3 sentences. State the most likely issue (or what the quote covers). Distinguish clearly between 'likely cause' and 'possible cause'. Be specific to what was described — never generic.",
   "severity": "Exactly one word — Emergency OR Urgent OR Monitor OR Cosmetic",
   "severityReason": "One sentence. State the specific consequence of delay — structural damage, safety risk, cost escalation, or health hazard. Do not soften serious findings.",
-  "costMin": <integer — regional low-end repair cost in USD, no formatting>,
-  "costMax": <integer — regional high-end repair cost in USD, no formatting>,
-  "keyInsight": "${flow === 'pre'
-    ? 'One specific, high-value clinical observation: the most important thing the homeowner needs to know before contacting any contractor. Reference the likely root cause, not just the visible symptom.'
-    : 'One specific finding about this quote: pricing fairness, scope completeness, or a concern the homeowner must address before signing. Be direct and specific.'}"
+  "costMin": <${costMinInstruction}>,
+  "costMax": <${costMaxInstruction}>,
+  "keyInsight": "${keyInsightInstruction}"
 }`
 }
 

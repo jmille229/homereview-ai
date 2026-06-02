@@ -26,6 +26,7 @@ import type {
   QuoteShieldReport,
   StoredSession,
   UpdateReportResponse,
+  UploadedFile,
 } from '@/lib/types'
 
 // ─── Schema repair ────────────────────────────────────────────────────────────
@@ -81,6 +82,10 @@ export const maxDuration = 120  // 120s gives Sonnet full generation time + clea
 async function generateAndSaveReport(
   sessionId: string,
   session: StoredSession,
+  // Files from sessionStorage — present for post-quote flow, absent for pre-quote.
+  // Passed through from the POST handler so the background function has access
+  // to the uploaded contractor quote document without re-fetching from anywhere.
+  files: UploadedFile[] = [],
 ): Promise<void> {
   // Outer try-catch ensures markReportFailed is ALWAYS called on any failure,
   // including errors that occur before the Claude call (e.g. getCategoryLabel).
@@ -115,6 +120,7 @@ async function generateAndSaveReport(
       const rawShield = await callClaude({
         system:    buildQuoteShieldSystem(categoryLabel, session.zip),
         userText,
+        files,     // contractor quote document from sessionStorage — anchors fair price range
         schema:    quoteShieldSchema,
         model:     'sonnet',
         maxTokens: 3500,
@@ -150,6 +156,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       { error: 'Too many requests. Please try again later.' },
       { status: 429 },
     )
+  }
+
+  // ── Body size guard ────────────────────────────────────────────────────────
+  // POST now accepts files (contractor quote documents from sessionStorage).
+  // Enforce the same size limit as PATCH to prevent oversized payloads.
+  const contentLength = req.headers.get('content-length')
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 })
   }
 
   // ── Parse and validate ─────────────────────────────────────────────────────
@@ -281,7 +295,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   //   - Total perceived wait time: 2-3 seconds to acknowledgement, not 40 seconds
   //
   waitUntil(
-    generateAndSaveReport(reportSessionId, session).finally(async () => {
+    generateAndSaveReport(reportSessionId, session, data.files ?? []).finally(async () => {
       // Always release the lock, whether generation succeeded or failed
       await releaseLock!()
     }),

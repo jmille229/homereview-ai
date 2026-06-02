@@ -99,6 +99,11 @@ export const generateReportRequestSchema = z.object({
       /^cs_(live|test)_[a-zA-Z0-9]{20,200}$/,
       'Invalid payment session ID format.',
     ),
+  // Files are optional — present for post-quote (Quote Shield) flow where
+  // the uploaded contractor quote document is stored in sessionStorage on the
+  // client and re-sent at report generation time. Not sent for pre-quote flow.
+  // Optional on retry too, since sessionStorage may have been cleared.
+  files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST).optional(),
 })
 
 export const updateReportRequestSchema = z.object({
