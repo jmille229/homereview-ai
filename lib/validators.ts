@@ -120,6 +120,11 @@ export const updateReportRequestSchema = z.object({
   note:  z.string().max(2000).optional(),
 })
 
+export const reclaimRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  email:     z.string().email('Enter a valid email address.').max(320),
+})
+
 export const checkoutRequestSchema = z.object({
   sessionId: z.string().uuid(),
   product:   z.enum(['brief', 'shield', 'bundle'] as [Product, Product, Product]),

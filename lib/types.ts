@@ -127,6 +127,9 @@ export interface StoredSession {
   preview: PreviewResult
   paid: boolean
   paidAt?: string
+  /** Email the payer used at Stripe checkout. Used to reclaim access on a new
+   *  device. Stored lowercased; never returned to the client. */
+  payerEmail?: string
   product?: import('./enums').Product
   reportStatus?: import('./enums').ReportStatus
   report?: DiagnosticBriefReport | QuoteShieldReport

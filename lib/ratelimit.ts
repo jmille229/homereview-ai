@@ -50,6 +50,19 @@ export const chatLimiter = new Ratelimit({
 })
 
 /**
+ * Reclaim endpoint: 10 attempts per IP per hour.
+ *
+ * Access reclaim verifies the payer's checkout email. This limit blunts
+ * email-guessing attempts against a known session URL.
+ */
+export const reclaimLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 h'),
+  analytics: false,
+  prefix: 'hr:reclaim',
+})
+
+/**
  * Status polling endpoint: 300 requests per IP per hour.
  *
  * The success page polls every 2 seconds for up to 90 seconds — up to 45

@@ -20,6 +20,13 @@ import {
 } from '@/lib/validators'
 import { stripe } from '@/lib/stripe'
 import { getCategoryLabel } from '@/lib/constants'
+import {
+  accessCookieName,
+  accessCookieOptions,
+  accessWindowSeconds,
+  createAccessToken,
+  hasValidAccess,
+} from '@/lib/access'
 import type {
   DiagnosticBriefReport,
   GenerateReportResponse,
@@ -212,6 +219,23 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid payment session.' }, { status: 400 })
   }
 
+  // The email the buyer used at Stripe checkout — stored so they can reclaim
+  // access on another device via /api/report/reclaim.
+  const payerEmail = stripeSession.customer_details?.email?.toLowerCase().trim()
+
+  // Payment is proven for this session: mint a per-session access cookie on
+  // every success response below. This is what gates the report pages, chat,
+  // and living-report updates — the session URL alone is no longer enough.
+  const grant = (res: NextResponse): NextResponse => {
+    const ttl = accessWindowSeconds(product)
+    res.cookies.set(
+      accessCookieName(reportSessionId),
+      createAccessToken(reportSessionId, ttl),
+      accessCookieOptions(ttl),
+    )
+    return res
+  }
+
   // ── Fetch our session ──────────────────────────────────────────────────────
   let session: StoredSession | null
   try {
@@ -234,7 +258,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       sessionId: reportSessionId,
       product,
     }
-    return NextResponse.json(res)
+    return grant(NextResponse.json(res))
   }
 
   // ── If already generating, check if it's stale (waitUntil may have timed out) ──
@@ -245,7 +269,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (!isStale) {
       // Genuinely in progress — tell client to keep polling
       const res: GenerateReportResponse = { status: 'generating', sessionId: reportSessionId, product }
-      return NextResponse.json(res, { status: 202 })
+      return grant(NextResponse.json(res, { status: 202 }))
     }
     // Stale — waitUntil likely timed out. Fall through to retry generation.
     console.error('[report] Stale generating state detected, retrying:', { sessionId: reportSessionId })
@@ -276,6 +300,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     await updateSession(reportSessionId, {
       paid:         true,
       paidAt:       new Date().toISOString(),
+      payerEmail,
       product,
       reportStatus: 'generating',
     })
@@ -311,7 +336,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     sessionId: reportSessionId,
     product,
   }
-  return NextResponse.json(res, { status: 202 }) // 202 Accepted — work in progress
+  return grant(NextResponse.json(res, { status: 202 })) // 202 Accepted — work in progress
 }
 
 // ─── PATCH /api/report — Update a Quote Shield living report ──────────────────
@@ -362,6 +387,14 @@ export async function PATCH(req: Request): Promise<NextResponse> {
 
   if (!session || !session.paid || session.flow !== 'post' || !session.report) {
     return NextResponse.json({ error: 'Report not found.' }, { status: 404 })
+  }
+
+  // ── Require a valid access cookie (payment-bound capability) ────────────────
+  if (!hasValidAccess(data.sessionId)) {
+    return NextResponse.json(
+      { error: 'Access expired. Please reopen your report to continue.' },
+      { status: 401 },
+    )
   }
 
   // ── Check 60-day update window ─────────────────────────────────────────────
