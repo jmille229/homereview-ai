@@ -75,17 +75,30 @@ In Vercel dashboard → Project → Settings → Environment Variables, add all 
 
 ---
 
-## Adding Authentication (Recommended for Phase 2)
+## Access Control
 
-The current implementation uses session UUIDs as security tokens. For a more robust auth system:
+Paid reports are gated by a **payment-bound capability cookie**, not by the
+session URL alone:
 
-1. Install Clerk: `npm install @clerk/nextjs`
-2. Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to `.env.local`
-3. Wrap the root layout with `<ClerkProvider>`
-4. Add `userId` to the `StoredSession` type and link sessions to users
-5. Add `auth()` checks to all API routes
+- After Stripe confirms payment, `/api/report` mints a signed, HttpOnly,
+  per-session cookie (`hr_access_<sessionId>`) whose lifetime matches the
+  product window (30 days for Brief, 60 days for Shield/Bundle).
+- The report pages and the chat / living-report-update APIs require a valid
+  cookie. The status-polling endpoint is intentionally not gated (it reveals
+  nothing beyond the URL the buyer already has).
+- To view a report on another device, the buyer visits `/unlock?session=<id>`
+  and enters the email they used at Stripe checkout. `/api/report/reclaim`
+  verifies it against the stored payer email and re-mints the cookie. This
+  endpoint is rate-limited and returns generic errors to resist guessing.
 
-See: https://clerk.com/docs/quickstarts/nextjs
+Set a strong `ACCESS_TOKEN_SECRET` (see `.env.example`) — the app fails closed
+in production if it is missing.
+
+### Phase 2 — Full accounts (optional)
+
+For per-user dashboards and history, add a real auth provider (e.g. Clerk),
+put `userId` on `StoredSession`, and check `auth()` in the API routes. The
+capability cookie above remains a useful second factor for shareable links.
 
 ---
 

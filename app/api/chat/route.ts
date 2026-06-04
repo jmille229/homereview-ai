@@ -8,6 +8,7 @@ import { buildChatSystem, sanitizeInput } from '@/lib/prompts'
 import { chatRequestSchema } from '@/lib/validators'
 import type { ChatMessage, ChatResponse, StoredSession } from '@/lib/types'
 import { getCategoryLabel } from '@/lib/constants'
+import { hasValidAccess } from '@/lib/access'
 
 export const runtime   = 'nodejs'
 export const maxDuration = 30
@@ -57,6 +58,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   if (!session || !session.paid || !session.report) {
     return NextResponse.json({ error: 'Chat not available.' }, { status: 403 })
+  }
+
+  // ── Require a valid access cookie (payment-bound capability) ────────────────
+  if (!hasValidAccess(data.sessionId)) {
+    return NextResponse.json(
+      { error: 'Access expired. Please reopen your report to continue.' },
+      { status: 401 },
+    )
   }
 
   // ── Check chat expiry window ───────────────────────────────────────────────

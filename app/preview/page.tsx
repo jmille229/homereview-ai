@@ -187,8 +187,10 @@ export default function PreviewPage() {
 
   if (!flow || !preview || !sessionId) return null
 
-  const primaryPackage   = PACKAGES.find(p => p.flow === flow)!
-  const secondaryPackage = PACKAGES.find(p => p.flow !== flow)!
+  // The flow chosen at intake determines the product. We only offer the
+  // package that matches this session's flow — checkout rejects a mismatched
+  // product, so showing the other package's purchase button would only error.
+  const primaryPackage = PACKAGES.find(p => p.flow === flow)!
 
   const handlePurchase = async (product: Product) => {
     setPurchaseError(null)
@@ -362,29 +364,6 @@ export default function PreviewPage() {
               <p className="text-[11px] text-brand-muted text-center mt-2.5">
                 Secure checkout via Stripe · One-time payment · No subscription
               </p>
-            </div>
-          </div>
-
-          {/* Secondary package — smaller */}
-          <div className="bg-white border border-brand-border rounded-xl p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded mb-2 ${secondaryPackage.badgeClass}`}>
-                  {secondaryPackage.badge}
-                </span>
-                <p className="text-sm font-semibold text-brand-navy">{secondaryPackage.label}</p>
-                <p className="text-xs text-brand-muted mt-0.5 leading-snug">{secondaryPackage.tagline}</p>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <p className="text-xl font-bold text-brand-navy mb-2">{secondaryPackage.price}</p>
-                <button
-                  onClick={() => handlePurchase(secondaryPackage.product)}
-                  disabled={purchasing}
-                  className="text-xs font-semibold text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
-                >
-                  Switch to this →
-                </button>
-              </div>
             </div>
           </div>
         </div>

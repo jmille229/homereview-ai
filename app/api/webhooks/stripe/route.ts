@@ -87,10 +87,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ received: true })
     }
 
+    const payerEmail = checkoutSession.customer_details?.email?.toLowerCase().trim()
+
     try {
       await updateSession(reportSessionId, {
         paid:   true,
         paidAt: new Date().toISOString(),
+        payerEmail,
         product: product as StoredSession['product'],
       })
     } catch (err) {

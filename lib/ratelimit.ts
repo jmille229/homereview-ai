@@ -2,7 +2,7 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { redis } from './redis'
 
 /**
- * Preview endpoint: 5 requests per IP per hour.
+ * Preview endpoint: 20 requests per IP per hour.
  * Protects against abuse of the free AI-powered preview.
  */
 export const previewLimiter = new Ratelimit({
@@ -47,6 +47,19 @@ export const chatLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(200, '1 d'),
   analytics: false,
   prefix: 'hr:chat',
+})
+
+/**
+ * Reclaim endpoint: 10 attempts per IP per hour.
+ *
+ * Access reclaim verifies the payer's checkout email. This limit blunts
+ * email-guessing attempts against a known session URL.
+ */
+export const reclaimLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 h'),
+  analytics: false,
+  prefix: 'hr:reclaim',
 })
 
 /**

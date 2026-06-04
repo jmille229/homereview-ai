@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
 import { getSession } from '@/lib/redis'
+import { hasValidAccess } from '@/lib/access'
 import { DiagnosticBrief } from '@/components/reports/DiagnosticBrief'
 import type { DiagnosticBriefReport } from '@/lib/types'
 
@@ -20,6 +21,10 @@ export default async function BriefReportPage({ params }: Props) {
   if (!session)               redirect('/')
   if (!session.paid)          redirect('/preview')
   if (session.flow !== 'pre') redirect('/')
+
+  // Payment-bound access: the session URL alone is not sufficient. Without a
+  // valid access cookie, send the user to reclaim it with their checkout email.
+  if (!hasValidAccess(params.sessionId)) redirect(`/unlock?session=${params.sessionId}`)
 
   // Allow access even when report generation failed — user has paid and
   // deserves access to chat support while we resolve the issue.

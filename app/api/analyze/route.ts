@@ -67,7 +67,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const userText = `Issue description: ${sanitizedDesc}${answersContext}\nZip code: ${zip || 'Not provided'}`
 
-  // ── Call Claude (Haiku for preview speed) ─────────────────────────────────
+  // ── Call Claude (Sonnet — preview quality drives the purchase decision) ────
   let preview: ReturnType<typeof previewResultSchema.parse>
   try {
     preview = await callClaude({
