@@ -22,7 +22,7 @@ export async function GET(
   req: Request,
   { params }: { params: { sessionId: string } },
 ): Promise<NextResponse> {
-  // ── Rate limit — use the report limiter (generous 20/day) ──────────────────
+  // ── Rate limit — dedicated status limiter (300/h) sized for 2s polling ─────
   const ip = getClientIp(req)
   const { success } = await statusLimiter.limit(ip)
   if (!success) {

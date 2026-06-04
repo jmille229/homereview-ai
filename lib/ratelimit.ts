@@ -2,7 +2,7 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { redis } from './redis'
 
 /**
- * Preview endpoint: 5 requests per IP per hour.
+ * Preview endpoint: 20 requests per IP per hour.
  * Protects against abuse of the free AI-powered preview.
  */
 export const previewLimiter = new Ratelimit({

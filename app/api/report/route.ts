@@ -132,8 +132,10 @@ async function generateAndSaveReport(
     await markReportComplete(sessionId, report)
 
   } catch (err) {
-    // Store the ACTUAL error message so it's visible in Upstash and the
-    // status polling response. Generic messages make debugging impossible.
+    // Log the ACTUAL error server-side for debugging, but persist only a
+    // generic, user-safe message. The stored value is returned verbatim to the
+    // browser by the status endpoint, so it must not leak internal details
+    // (model names, timeouts, schema-validation internals).
     const errorMessage = err instanceof Error ? err.message : String(err)
     console.error('[report/generate] Generation failed:', {
       message: errorMessage,
@@ -141,7 +143,10 @@ async function generateAndSaveReport(
       flow: session.flow,
       category: session.category,
     })
-    await markReportFailed(sessionId, errorMessage)
+    await markReportFailed(
+      sessionId,
+      'We couldn\'t finish building your report. Please try again — you won\'t be charged again.',
+    )
   }
 }
 
