@@ -60,13 +60,7 @@ const PACKAGES = [
 
 interface QAPair { question: string; answer: string }
 
-function FollowupQA({
-  sessionId,
-  onExhausted,
-}: {
-  sessionId:   string
-  onExhausted: () => void
-}) {
+function FollowupQA({ sessionId }: { sessionId: string }) {
   const [input, setInput]         = useState('')
   const [history, setHistory]     = useState<QAPair[]>([])
   const [remaining, setRemaining] = useState(MAX_FOLLOWUP_QUESTIONS)
@@ -78,9 +72,11 @@ function FollowupQA({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
 
+  const exhausted = remaining <= 0
+
   const handleAsk = async () => {
     const question = input.trim()
-    if (!question || loading) return
+    if (!question || loading || exhausted) return
     setInput(''); setLoading(true); setError(null)
 
     try {
@@ -91,7 +87,9 @@ function FollowupQA({
       })
       const json: FollowupResponse | { error: string } = await res.json()
 
-      if (res.status === 403) { onExhausted(); return }
+      // 403 means the server considers the free allowance spent. Reflect that
+      // without tearing down the conversation rendered so far.
+      if (res.status === 403) { setRemaining(0); return }
       if (!res.ok || 'error' in json) {
         setError(('error' in json ? json.error : null) ?? 'Could not get an answer. Try again.')
         return
@@ -99,7 +97,6 @@ function FollowupQA({
       const { answer, questionsRemaining } = json as FollowupResponse
       setHistory(prev => [...prev, { question, answer }])
       setRemaining(questionsRemaining)
-      if (questionsRemaining === 0) onExhausted()
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -135,26 +132,45 @@ function FollowupQA({
         </div>
       )}
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
-          placeholder="Ask something about your situation…"
-          maxLength={1000}
-          className="input flex-1 text-sm"
-          disabled={loading}
-          aria-label="Follow-up question"
-        />
-        <button
-          onClick={handleAsk}
-          disabled={!input.trim() || loading}
-          className="px-4 py-2.5 bg-brand-navy text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-opacity flex-shrink-0 flex items-center gap-2"
-        >
-          {loading ? <LoadingSpinner size={14} color="white" /> : 'Ask'}
-        </button>
-      </div>
+      {exhausted ? (
+        // Allowance spent. The component stays mounted so the answers above
+        // remain visible — we only swap the input for an upsell prompt.
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-sm font-semibold text-amber-800 mb-1">
+            That&apos;s your {MAX_FOLLOWUP_QUESTIONS} free questions
+          </p>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            Every report includes unlimited follow-up chat — purchase below to
+            continue the conversation.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
+              placeholder="Ask something about your situation…"
+              maxLength={1000}
+              className="input flex-1 text-sm"
+              disabled={loading}
+              aria-label="Follow-up question"
+            />
+            <button
+              onClick={handleAsk}
+              disabled={!input.trim() || loading}
+              className="px-4 py-2.5 bg-brand-navy text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-opacity flex-shrink-0 flex items-center gap-2"
+            >
+              {loading ? <LoadingSpinner size={14} color="white" /> : 'Ask'}
+            </button>
+          </div>
+          <p className="text-[11px] text-brand-muted mt-2">
+            {remaining} free {remaining === 1 ? 'question' : 'questions'} remaining
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -176,9 +192,8 @@ export default function PreviewPage() {
   const router = useRouter()
   const { flow, preview, sessionId } = useSessionStore()
 
-  const [purchasing, setPurchasing]               = useState(false)
-  const [purchaseError, setPurchaseError]         = useState<string | null>(null)
-  const [followupExhausted, setFollowupExhausted] = useState(false)
+  const [purchasing, setPurchasing]       = useState(false)
+  const [purchaseError, setPurchaseError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!flow) router.replace('/')
@@ -272,33 +287,21 @@ export default function PreviewPage() {
 
         {/* ── Follow-up Q&A ────────────────────────────────────────────── */}
         <div className="mb-10">
-          {!followupExhausted ? (
-            <div className="border border-brand-amber rounded-xl overflow-hidden">
-              <div className="px-5 pt-4 pb-3 border-b border-brand-border">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-brand-navy">
-                    Have a question about this?
-                  </p>
-                  <span className="text-[11px] text-brand-muted">
-                    {MAX_FOLLOWUP_QUESTIONS} free questions included
-                  </span>
-                </div>
-              </div>
-              <div className="p-5 bg-white">
-                <FollowupQA
-                  sessionId={sessionId}
-                  onExhausted={() => setFollowupExhausted(true)}
-                />
+          <div className="border border-brand-amber rounded-xl overflow-hidden">
+            <div className="px-5 pt-4 pb-3 border-b border-brand-border">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-brand-navy">
+                  Have a question about this?
+                </p>
+                <span className="text-[11px] text-brand-muted">
+                  {MAX_FOLLOWUP_QUESTIONS} free questions included
+                </span>
               </div>
             </div>
-          ) : (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-sm font-semibold text-amber-800 mb-1">Free questions used</p>
-              <p className="text-xs text-amber-700 leading-relaxed">
-                Every report includes unlimited follow-up chat — purchase to continue the conversation.
-              </p>
+            <div className="p-5 bg-white">
+              <FollowupQA sessionId={sessionId} />
             </div>
-          )}
+          </div>
         </div>
 
         {/* ── Unlock section ───────────────────────────────────────────── */}
