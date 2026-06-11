@@ -7,12 +7,13 @@ import { NavBar } from '@/components/ui/NavBar'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import {
+  CATEGORY_IDS,
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
 import { CATEGORY_LABELS } from '@/lib/constants'
-import type { CategoryId, Flow, UploadedFile } from '@/lib/types'
+import type { Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
 import { Button } from '@/components/ui/Button'
 import {
@@ -28,11 +29,6 @@ type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 interface LocalFile {
   name: string; type: AllowedMime; size: number; dataUrl: string
 }
-
-const CATEGORY_IDS: CategoryId[] = [
-  'hvac', 'plumbing', 'electrical', 'roofing',
-  'foundation', 'appliances', 'pest', 'maintenance',
-]
 
 const FLOW_OPTIONS: Array<{
   value: Flow; Icon: typeof SearchIcon; title: string; sub: string
@@ -286,7 +282,7 @@ export default function IntakePage() {
                     <div className="mt-2.5 pl-[30px]">
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-amber-deep">
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
-                          <circle cx="4" cy="4" r="3.5" fill="#9A5B1F"/>
+                          <circle cx="4" cy="4" r="3.5" fill="currentColor"/>
                         </svg>
                         Selected
                       </span>
