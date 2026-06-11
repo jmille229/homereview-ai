@@ -93,23 +93,14 @@ export function ChatInterface({
   }
 
   return (
-    <div className="mt-8 pt-8 border-t border-brand-border">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h3 className="text-base font-semibold text-brand-navy">
-            Ask anything about your situation
-          </h3>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Included with your report · Unlimited questions
-          </p>
-        </div>
-        {!expired && (
-          <span className="text-xs text-brand-muted flex-shrink-0 ml-4">
-            {daysRemaining}d remaining
-          </span>
-        )}
-      </div>
+    <div>
+      {/* Slim meta row — the navy band the report pages wrap this in already
+          carries the heading, so a second full header here was pure noise. */}
+      {!expired && (
+        <p className="text-xs text-brand-muted mb-4">
+          Ask anything about your situation · Unlimited questions · {daysRemaining} days remaining
+        </p>
+      )}
 
       {/* Message history */}
       {messages.length > 0 && (
@@ -123,7 +114,7 @@ export function ChatInterface({
                 className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-brand-navy text-white rounded-tr-sm'
-                    : 'bg-white border border-brand-border text-brand-navy rounded-tl-sm'
+                    : 'bg-brand-bg border border-brand-border text-brand-navy rounded-tl-sm'
                 }`}
               >
                 {msg.content}
@@ -132,8 +123,8 @@ export function ChatInterface({
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-brand-border rounded-2xl rounded-tl-sm px-4 py-3">
-                <LoadingSpinner size={14} color="#64748B" />
+              <div className="bg-brand-bg border border-brand-border rounded-2xl rounded-tl-sm px-4 py-3">
+                <LoadingSpinner size={14} color="#5A6678" />
               </div>
             </div>
           )}
@@ -153,7 +144,7 @@ export function ChatInterface({
             <button
               key={prompt}
               onClick={() => { setInput(prompt); }}
-              className="text-xs px-3 py-1.5 bg-white border border-brand-border rounded-full text-brand-muted hover:border-brand-border-dark hover:text-brand-navy transition-colors"
+              className="text-xs px-3 py-2 bg-brand-bg border border-brand-border rounded-full text-brand-muted hover:border-brand-border-dark hover:text-brand-navy transition-colors"
             >
               {prompt}
             </button>
@@ -170,7 +161,7 @@ export function ChatInterface({
 
       {/* Input */}
       {expired ? (
-        <div className="p-4 bg-gray-50 border border-brand-border rounded-xl text-center">
+        <div className="p-4 bg-brand-bg border border-brand-border rounded-xl text-center">
           <p className="text-xs text-brand-muted">
             Your {chatDays}-day chat window has expired.
           </p>

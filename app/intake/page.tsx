@@ -5,16 +5,24 @@ import { useRef, useState } from 'react'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import {
+  CATEGORY_IDS,
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
 import { CATEGORY_LABELS } from '@/lib/constants'
-import type { CategoryId, Flow, UploadedFile } from '@/lib/types'
+import type { Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
+import { Button } from '@/components/ui/Button'
+import {
+  CATEGORY_ICONS,
+  ClipboardIcon,
+  PaperclipIcon,
+  PlusIcon,
+  SearchIcon,
+} from '@/components/ui/icons'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -22,29 +30,18 @@ interface LocalFile {
   name: string; type: AllowedMime; size: number; dataUrl: string
 }
 
-const CATEGORIES: Array<{ id: CategoryId; icon: string }> = [
-  { id: 'hvac',        icon: '🌡️' },
-  { id: 'plumbing',    icon: '🚿' },
-  { id: 'electrical',  icon: '⚡' },
-  { id: 'roofing',     icon: '🏠' },
-  { id: 'foundation',  icon: '🏗️' },
-  { id: 'appliances',  icon: '🔧' },
-  { id: 'pest',        icon: '🪲' },
-  { id: 'maintenance', icon: '🛠️' },
-]
-
 const FLOW_OPTIONS: Array<{
-  value: Flow; icon: string; title: string; sub: string
+  value: Flow; Icon: typeof SearchIcon; title: string; sub: string
 }> = [
   {
     value: 'pre',
-    icon:  '🔍',
+    Icon:  SearchIcon,
     title: 'I have a home problem',
     sub:   "I haven't contacted a contractor yet",
   },
   {
     value: 'post',
-    icon:  '📋',
+    Icon:  ClipboardIcon,
     title: 'I have a quote to evaluate',
     sub:   'I want to know if it\'s fair',
   },
@@ -87,7 +84,9 @@ function FileUploadArea({
         aria-label="Upload files"
       >
         <div className="flex flex-col items-center gap-1.5">
-          <span className="text-xl" aria-hidden="true">{prominent ? '📎' : '+'}</span>
+          {prominent
+            ? <PaperclipIcon size={20} className="text-brand-navy" />
+            : <PlusIcon size={18} className="text-brand-muted" />}
           {prominent ? (
             <>
               <p className="text-sm font-semibold text-brand-navy">Upload the contractor quote</p>
@@ -125,7 +124,7 @@ function FileUploadArea({
                 type="button"
                 onClick={() => onRemoveFile(i)}
                 aria-label={`Remove ${f.name}`}
-                className="text-brand-muted hover:text-red-500 transition-colors ml-0.5"
+                className="text-brand-muted hover:text-red-500 transition-colors p-1.5 -m-1"
               >×</button>
             </li>
           ))}
@@ -147,7 +146,13 @@ export default function IntakePage() {
   const [submitError, setSubmitError]         = useState<string | null>(null)
   const [submitting, setSubmitting]           = useState(false)
   const [descriptionTouched, setDescTouched] = useState(false)
+  // When the flow was already chosen (homepage CTA), show a compact confirmed
+  // row instead of re-asking the same question — the user can still change it.
+  const [pickerExpanded, setPickerExpanded]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const showFlowPicker = !flow || pickerExpanded
+  const selectedFlow   = FLOW_OPTIONS.find(o => o.value === flow)
 
   // ── File handling ─────────────────────────────────────────────────────────
 
@@ -190,6 +195,9 @@ export default function IntakePage() {
     if (!flow) { setSubmitError('Please select where you are in the process.'); return }
     if (!category) { setSubmitError('Please select the area of your home.'); return }
     if (description.trim().length < 20) { setSubmitError('Please describe the situation in a bit more detail.'); return }
+    // Catch partial zips here — otherwise the server rejects them at the END of
+    // the flow (after the user has answered questions), which is far worse UX.
+    if (zip.length > 0 && zip.length < 5) { setSubmitError('Please enter all 5 digits of your zip code, or leave it blank.'); return }
 
     setSubmitError(null)
     setSubmitting(true)
@@ -201,7 +209,8 @@ export default function IntakePage() {
     router.push('/questions')
   }
 
-  const canSubmit = !!flow && !!category && description.trim().length >= 20 && !submitting
+  const zipValid  = zip.length === 0 || zip.length === 5
+  const canSubmit = !!flow && !!category && description.trim().length >= 20 && zipValid && !submitting
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -227,41 +236,62 @@ export default function IntakePage() {
           <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
             Where are you right now?
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {FLOW_OPTIONS.map(({ value, icon, title, sub }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFlow(value)}
-                aria-pressed={flow === value}
-                className={`p-4 rounded-xl border text-left transition-all duration-150 ${
-                  flow === value
-                    ? 'border-brand-navy bg-white shadow-sm'
-                    : 'border-brand-border bg-white hover:border-brand-border-dark'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <span className="text-lg" aria-hidden="true">{icon}</span>
-                  <p className={`text-sm font-semibold leading-tight ${
-                    flow === value ? 'text-brand-navy' : 'text-brand-muted'
-                  }`}>
-                    {title}
-                  </p>
+
+          {/* Already chosen on the homepage — confirm, don't re-ask */}
+          {!showFlowPicker && selectedFlow ? (
+            <div className="flex items-center justify-between gap-3 p-4 bg-white border border-brand-navy rounded-xl shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <selectedFlow.Icon size={18} className="text-brand-navy flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-navy leading-tight">{selectedFlow.title}</p>
+                  <p className="text-xs text-brand-muted mt-0.5">{selectedFlow.sub}</p>
                 </div>
-                <p className="text-xs text-brand-muted pl-8">{sub}</p>
-                {flow === value && (
-                  <div className="mt-2.5 pl-8">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-amber">
-                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
-                        <circle cx="4" cy="4" r="3.5" fill="#B8722E"/>
-                      </svg>
-                      Selected
-                    </span>
-                  </div>
-                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerExpanded(true)}
+                className="text-xs font-semibold text-brand-amber-deep hover:text-brand-navy transition-colors flex-shrink-0"
+              >
+                Change
               </button>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {FLOW_OPTIONS.map(({ value, Icon, title, sub }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFlow(value)}
+                  aria-pressed={flow === value}
+                  className={`p-4 rounded-xl border text-left transition-all duration-150 ${
+                    flow === value
+                      ? 'border-brand-navy bg-white shadow-sm'
+                      : 'border-brand-border bg-white hover:border-brand-border-dark'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <Icon size={18} className={flow === value ? 'text-brand-navy' : 'text-brand-muted'} />
+                    <p className={`text-sm font-semibold leading-tight ${
+                      flow === value ? 'text-brand-navy' : 'text-brand-muted'
+                    }`}>
+                      {title}
+                    </p>
+                  </div>
+                  <p className="text-xs text-brand-muted pl-[30px]">{sub}</p>
+                  {flow === value && (
+                    <div className="mt-2.5 pl-[30px]">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-amber-deep">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+                          <circle cx="4" cy="4" r="3.5" fill="currentColor"/>
+                        </svg>
+                        Selected
+                      </span>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Post-quote: quote upload first ───────────────────────────── */}
@@ -306,7 +336,7 @@ export default function IntakePage() {
           <div id="desc-hint" className="flex items-start justify-between mt-1.5">
             <p className="text-[11px] text-brand-muted leading-relaxed">
               {descriptionTouched && description.trim().length > 0 && description.trim().length < 20
-                ? '⚠ Please add a bit more detail for an accurate analysis.'
+                ? 'Please add a bit more detail for an accurate analysis.'
                 : 'Include duration, symptoms, and any prior repairs — the more context, the better.'}
             </p>
             <p className="text-[11px] text-brand-muted ml-3 flex-shrink-0">
@@ -334,22 +364,25 @@ export default function IntakePage() {
             Area of the home
           </p>
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map(({ id, icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCategory(id)}
-                aria-pressed={category === id}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 ${
-                  category === id
-                    ? 'border-brand-navy bg-brand-navy text-white'
-                    : 'border-brand-border bg-white text-brand-muted hover:border-brand-border-dark hover:text-brand-navy'
-                }`}
-              >
-                <span aria-hidden="true">{icon}</span>
-                {CATEGORY_LABELS[id]}
-              </button>
-            ))}
+            {CATEGORY_IDS.map((id) => {
+              const Icon = CATEGORY_ICONS[id]
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCategory(id)}
+                  aria-pressed={category === id}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-medium transition-all duration-150 ${
+                    category === id
+                      ? 'border-brand-navy bg-brand-navy text-white'
+                      : 'border-brand-border bg-white text-brand-muted hover:border-brand-border-dark hover:text-brand-navy'
+                  }`}
+                >
+                  <Icon size={14} className="flex-shrink-0" />
+                  {CATEGORY_LABELS[id]}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -376,20 +409,20 @@ export default function IntakePage() {
             style={{ maxWidth: 160 }}
           />
           {zip.length === 0 && (
-            <p className="text-[11px] text-brand-muted mt-1.5">
+            <p className="text-xs text-brand-muted mt-1.5">
               Without a zip code, cost estimates use national medians and may be
               $1,000–$3,000+ off for your area.
             </p>
           )}
           {zip.length > 0 && zip.length < 5 && (
-            <p className="text-[11px] text-red-500 mt-1.5">
-              Enter all 5 digits for regional accuracy.
+            <p role="alert" className="text-xs text-red-600 mt-1.5">
+              Enter all 5 digits, or leave blank to use national medians.
             </p>
           )}
         </div>
 
         {/* ── Disclaimer ───────────────────────────────────────────────── */}
-        <p className="text-[11px] text-brand-muted leading-relaxed mb-6 px-4 py-3 bg-white border border-brand-border rounded-xl">
+        <p className="text-xs text-brand-muted leading-relaxed mb-6 px-4 py-3 bg-white border border-brand-border rounded-xl">
           By continuing, you acknowledge that HomeReview AI provides general informational
           analysis only — not professional contractor, engineering, or legal advice.
           Always consult a licensed professional before major repairs.
@@ -398,17 +431,17 @@ export default function IntakePage() {
         {/* ── Error + Submit ────────────────────────────────────────────── */}
         {submitError && <ErrorBanner message={submitError} />}
 
-        <button
+        <Button
+          size="lg"
+          full
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="btn-primary flex items-center justify-center gap-2 text-sm py-3.5"
+          loading={submitting}
+          loadingLabel="Continuing…"
         >
-          {submitting
-            ? <><LoadingSpinner size={16} color="white" /><span>Continuing…</span></>
-            : 'Continue →'
-          }
-        </button>
-        <p className="text-[11px] text-brand-muted text-center mt-2.5">
+          Continue →
+        </Button>
+        <p className="text-xs text-brand-muted text-center mt-2.5">
           Free preview included · No payment required
         </p>
       </div>

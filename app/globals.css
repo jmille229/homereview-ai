@@ -12,14 +12,16 @@
     @apply bg-brand-bg text-brand-navy;
   }
 
-  /* Remove default button focus outline; we apply our own */
-  button:focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-amber;
+  /* One focus treatment for every interactive element. */
+  button:focus-visible,
+  a:focus-visible,
+  [role='tab']:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-amber-deep;
   }
 
-  input:focus,
-  textarea:focus {
-    @apply outline-none ring-1 ring-brand-navy;
+  input:focus-visible,
+  textarea:focus-visible {
+    @apply outline-none ring-2 ring-brand-navy;
   }
 }
 
@@ -29,7 +31,7 @@
   }
 
   .btn-primary {
-    @apply w-full py-3 px-4 text-sm font-medium bg-brand-navy text-white rounded-xl
+    @apply w-full py-3 px-4 text-sm font-semibold bg-brand-navy text-white rounded-xl
            hover:bg-opacity-90 active:bg-opacity-80 transition-colors
            disabled:opacity-40 disabled:cursor-not-allowed;
   }

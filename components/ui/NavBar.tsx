@@ -3,18 +3,74 @@
 import Link from 'next/link'
 
 interface NavBarProps {
-  step?:   string
-  onBack?: () => void
+  /**
+   * site — marketing pages (home, learn, about, terms): full nav links + CTA.
+   * flow — funnel pages: deliberately minimal (back + step) to protect conversion.
+   */
+  variant?: 'site' | 'flow'
+  step?:    string
+  onBack?:  () => void
+  /** site variant only — homepage passes a handler that resets the session store. */
+  onStart?: () => void
 }
 
-/**
- * Sticky top navigation for all flow pages.
- * The wordmark always links home. Back button is shown when onBack is provided.
- * Step indicator appears at the right when in a multi-step flow.
- */
-export function NavBar({ step, onBack }: NavBarProps) {
+function Wordmark() {
   return (
-    <header className="sticky top-0 z-10 bg-brand-bg border-b border-brand-border">
+    <Link
+      href="/"
+      className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+      aria-label="HomeReview — back to home"
+    >
+      <div className="w-1.5 h-1.5 rounded-full bg-brand-amber" aria-hidden="true" />
+      <span className="text-xs font-semibold text-brand-amber-deep tracking-[0.08em]">
+        HOMEREVIEW
+      </span>
+    </Link>
+  )
+}
+
+const SITE_LINKS = [
+  { href: '/#how-it-works', label: 'How it works' },
+  { href: '/#products',     label: 'Reports' },
+  { href: '/learn',         label: 'Learn' },
+  { href: '/about',         label: 'About' },
+]
+
+export function NavBar({ variant = 'flow', step, onBack, onStart }: NavBarProps) {
+  if (variant === 'site') {
+    return (
+      <header className="sticky top-0 z-20 bg-brand-bg border-b border-brand-border print:hidden">
+        <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
+          <Wordmark />
+          <nav className="hidden sm:flex items-center gap-6" aria-label="Site navigation">
+            {SITE_LINKS.map(({ href, label }) => (
+              <Link key={href} href={href} className="text-xs text-brand-muted hover:text-brand-navy transition-colors">
+                {label}
+              </Link>
+            ))}
+          </nav>
+          {onStart ? (
+            <button
+              onClick={onStart}
+              className="text-xs font-semibold px-4 py-2 bg-brand-navy text-white rounded-lg hover:bg-opacity-90 transition-colors"
+            >
+              Start free →
+            </button>
+          ) : (
+            <Link
+              href="/intake"
+              className="text-xs font-semibold px-4 py-2 bg-brand-navy text-white rounded-lg hover:bg-opacity-90 transition-colors"
+            >
+              Start free →
+            </Link>
+          )}
+        </div>
+      </header>
+    )
+  }
+
+  return (
+    <header className="sticky top-0 z-10 bg-brand-bg border-b border-brand-border print:hidden">
       <div className="max-w-xl mx-auto px-5 h-12 flex items-center">
 
         {/* Back button */}
@@ -31,21 +87,11 @@ export function NavBar({ step, onBack }: NavBarProps) {
           </button>
         ) : null}
 
-        {/* Wordmark */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 hover:opacity-70 transition-opacity"
-          aria-label="HomeReview — back to home"
-        >
-          <div className="w-1.5 h-1.5 rounded-full bg-brand-amber" aria-hidden="true" />
-          <span className="text-[11px] font-semibold text-brand-amber tracking-[0.08em]">
-            HOMEREVIEW
-          </span>
-        </Link>
+        <Wordmark />
 
         {/* Step indicator */}
         {step && (
-          <span className="ml-auto text-[11px] font-medium text-brand-muted" aria-label={step}>
+          <span className="ml-auto text-xs font-medium text-brand-muted" aria-label={step}>
             {step}
           </span>
         )}
