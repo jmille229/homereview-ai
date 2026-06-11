@@ -14,12 +14,12 @@
 
 export function DisclaimerFooter() {
   return (
-    <div className="mt-6 p-4 bg-gray-50 border border-brand-border rounded-xl space-y-3">
+    <div className="mt-6 p-4 bg-white border border-brand-border rounded-xl space-y-3">
       <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-[0.05em]">
         Important Notice
       </p>
 
-      <p className="text-[11px] text-brand-muted leading-relaxed">
+      <p className="text-xs text-brand-muted leading-relaxed">
         <span className="font-semibold text-brand-navy">Not professional advice.</span>{' '}
         The analysis provided by HomeReview AI is for general informational and educational
         purposes only and does not constitute professional contractor, engineering, legal,
@@ -28,7 +28,7 @@ export function DisclaimerFooter() {
         mechanical systems.
       </p>
 
-      <p className="text-[11px] text-brand-muted leading-relaxed">
+      <p className="text-xs text-brand-muted leading-relaxed">
         <span className="font-semibold text-brand-navy">No warranty.</span>{' '}
         We do not warrant that the information provided is accurate, reliable, complete,
         or error-free. Regional cost ranges are estimates only and may vary significantly.
@@ -36,7 +36,7 @@ export function DisclaimerFooter() {
         based on this information.
       </p>
 
-      <p className="text-[11px] text-brand-muted leading-relaxed">
+      <p className="text-xs text-brand-muted leading-relaxed">
         <span className="font-semibold text-brand-navy">Limitation of liability.</span>{' '}
         To the fullest extent permitted by law, HomeReview AI shall not be liable for
         any indirect, incidental, special, consequential, or punitive damages, or any

@@ -51,14 +51,14 @@ const HOW_IT_WORKS_DETAIL = [
 export default function AboutPage() {
   return (
     <main className="min-h-screen bg-brand-bg">
+      <NavBar variant="site" />
       <div className="max-w-2xl mx-auto px-5 py-8">
-        <NavBar />
 
         {/* Hero */}
         <div className="mb-12">
           <div className="flex items-center gap-2 mb-6">
             <div className="w-2 h-2 rounded-full bg-brand-amber" aria-hidden="true" />
-            <span className="text-xs font-semibold text-brand-amber tracking-[0.08em]">
+            <span className="text-xs font-semibold text-brand-amber-deep tracking-[0.08em]">
               ABOUT
             </span>
           </div>

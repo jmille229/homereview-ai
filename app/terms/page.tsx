@@ -10,8 +10,8 @@ const COMPANY      = 'HomeReview AI'
 export default function TermsPage() {
   return (
     <main className="min-h-screen bg-brand-bg">
+      <NavBar variant="site" />
       <div className="max-w-2xl mx-auto px-5 py-8">
-        <NavBar />
 
         <h1 className="text-2xl font-semibold text-brand-navy mb-2">
           Terms of Service

@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSessionStore } from '@/store/session'
+import { NavBar } from '@/components/ui/NavBar'
+import { Button } from '@/components/ui/Button'
+import { ScaleIcon, ShieldIcon, DocumentIcon, ChatIcon } from '@/components/ui/icons'
 import type { Flow } from '@/lib/types'
 
 const SAMPLE_PREVIEW = {
@@ -48,10 +51,10 @@ const PRODUCTS = [
 ]
 
 const TRUST_STRIP = [
-  { icon: '⚖️', text: 'No contractor incentives' },
-  { icon: '🛡️', text: 'Conservative AI guardrails' },
-  { icon: '📋', text: 'Plain-language reports' },
-  { icon: '💬', text: 'Chat support included' },
+  { Icon: ScaleIcon,    text: 'No contractor incentives' },
+  { Icon: ShieldIcon,   text: 'Conservative AI guardrails' },
+  { Icon: DocumentIcon, text: 'Plain-language reports' },
+  { Icon: ChatIcon,     text: 'Chat support included' },
 ]
 
 const HOW_IT_WORKS = [
@@ -86,35 +89,14 @@ export default function HomePage() {
     <div className="min-h-screen bg-brand-bg">
 
       {/* ── Navbar ──────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-brand-bg border-b border-brand-border">
-        <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-brand-amber" aria-hidden="true" />
-            <span className="text-xs font-semibold text-brand-amber tracking-[0.08em]">
-              HOMEREVIEW
-            </span>
-          </div>
-          <nav className="hidden sm:flex items-center gap-6" aria-label="Site navigation">
-            <a href="#how-it-works" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">How it works</a>
-            <a href="#products" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">Reports</a>
-            <Link href="/learn" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">Learn</Link>
-            <Link href="/about" className="text-xs text-brand-muted hover:text-brand-navy transition-colors">About</Link>
-          </nav>
-          <button
-            onClick={() => handleStart('pre')}
-            className="text-xs font-semibold px-4 py-2 bg-brand-navy text-white rounded-lg hover:bg-opacity-90 transition-colors"
-          >
-            Start free →
-          </button>
-        </div>
-      </header>
+      <NavBar variant="site" onStart={() => handleStart('pre')} />
 
       <main>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <section className="max-w-3xl mx-auto px-5 pt-16 pb-12 text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-brand-border rounded-full mb-8">
-            <span className="text-[11px]" aria-hidden="true">🛡️</span>
+            <ShieldIcon size={13} className="text-brand-amber-deep" />
             <span className="text-[11px] font-medium text-brand-muted">
               Independent — no contractor referrals, no kickbacks
             </span>
@@ -131,18 +113,12 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
-            <button
-              onClick={() => handleStart('pre')}
-              className="px-6 py-3.5 bg-brand-navy text-white text-sm font-semibold rounded-xl hover:bg-opacity-90 active:scale-[0.99] transition-all"
-            >
+            <Button size="lg" onClick={() => handleStart('pre')}>
               I have a problem — get a Diagnostic Brief →
-            </button>
-            <button
-              onClick={() => handleStart('post')}
-              className="px-6 py-3.5 bg-white border border-brand-border text-brand-navy text-sm font-semibold rounded-xl hover:border-brand-border-dark active:scale-[0.99] transition-all"
-            >
+            </Button>
+            <Button size="lg" variant="secondary" onClick={() => handleStart('post')}>
               I have a quote — get Quote Shield
-            </button>
+            </Button>
           </div>
           <p className="text-xs text-brand-muted">
             Free preview in under 2 minutes · No credit card required
@@ -152,9 +128,9 @@ export default function HomePage() {
         {/* ── Trust strip ───────────────────────────────────────────────────── */}
         <section className="border-y border-brand-border bg-white" aria-label="Trust indicators">
           <div className="max-w-4xl mx-auto px-5 py-4 flex flex-wrap justify-center gap-x-8 gap-y-3">
-            {TRUST_STRIP.map(({ icon, text }) => (
+            {TRUST_STRIP.map(({ Icon, text }) => (
               <div key={text} className="flex items-center gap-2">
-                <span className="text-sm" aria-hidden="true">{icon}</span>
+                <Icon size={15} className="text-brand-amber-deep flex-shrink-0" />
                 <span className="text-xs text-brand-muted font-medium">{text}</span>
               </div>
             ))}
@@ -188,7 +164,7 @@ export default function HomePage() {
                 </ul>
                 <button
                   onClick={() => handleStart(p.flow)}
-                  className="text-sm font-semibold text-brand-amber hover:text-brand-navy transition-colors text-left"
+                  className="text-sm font-semibold text-brand-amber-deep hover:text-brand-navy transition-colors text-left"
                 >
                   Start free preview →
                 </button>
@@ -235,9 +211,10 @@ export default function HomePage() {
                   Independent, jargon-free, squarely on your side.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
+                  {/* amber-deep: white text on the lighter brand amber fails AA at this size */}
                   <button
                     onClick={() => handleStart('pre')}
-                    className="px-5 py-3 bg-brand-amber text-white text-sm font-semibold rounded-xl hover:bg-opacity-90 transition-all"
+                    className="px-5 py-3 bg-brand-amber-deep text-white text-sm font-semibold rounded-xl hover:bg-opacity-90 transition-all"
                   >
                     Start a Diagnostic Brief →
                   </button>
@@ -252,10 +229,10 @@ export default function HomePage() {
 
               {/* Sample preview card */}
               <div className="bg-white bg-opacity-[0.06] border border-white border-opacity-10 rounded-xl p-5">
-                <p className="text-[10px] font-semibold text-white opacity-40 uppercase tracking-[0.08em] mb-3">
+                <p className="text-[11px] font-semibold text-white opacity-60 uppercase tracking-[0.08em] mb-3">
                   Sample free preview
                 </p>
-                <p className="text-[11px] text-white opacity-50 mb-3 leading-relaxed">
+                <p className="text-xs text-white opacity-70 mb-3 leading-relaxed">
                   Issue: {SAMPLE_PREVIEW.issue}
                 </p>
                 <p className="text-sm text-white font-semibold leading-snug mb-4">
@@ -263,24 +240,24 @@ export default function HomePage() {
                 </p>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   <div className="bg-white bg-opacity-[0.08] rounded-lg p-3">
-                    <p className="text-[10px] text-white opacity-50 mb-1.5">Severity</p>
+                    <p className="text-[11px] text-white opacity-70 mb-1.5">Severity</p>
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" aria-hidden="true" />
                       <span className="text-sm font-semibold text-white">{SAMPLE_PREVIEW.severity}</span>
                     </div>
                   </div>
                   <div className="bg-white bg-opacity-[0.08] rounded-lg p-3">
-                    <p className="text-[10px] text-white opacity-50 mb-1.5">Typical cost</p>
+                    <p className="text-[11px] text-white opacity-70 mb-1.5">Typical cost</p>
                     <p className="text-sm font-semibold text-white">
                       ${SAMPLE_PREVIEW.costMin.toLocaleString()}–${SAMPLE_PREVIEW.costMax.toLocaleString()}
                     </p>
                   </div>
                 </div>
                 <div className="border-t border-white border-opacity-10 pt-3">
-                  <p className="text-[10px] text-white opacity-40 uppercase tracking-[0.06em] mb-1.5">Key insight</p>
-                  <p className="text-xs text-white opacity-70 leading-relaxed">{SAMPLE_PREVIEW.insight}</p>
+                  <p className="text-[11px] text-white opacity-60 uppercase tracking-[0.06em] mb-1.5">Key insight</p>
+                  <p className="text-xs text-white opacity-80 leading-relaxed">{SAMPLE_PREVIEW.insight}</p>
                 </div>
-                <p className="text-[10px] text-white opacity-30 mt-3">
+                <p className="text-[11px] text-white opacity-60 mt-3">
                   + full diagnosis, red flags &amp; negotiation guide unlock with report
                 </p>
               </div>
@@ -294,7 +271,7 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-brand-amber" aria-hidden="true" />
-                <span className="text-[11px] font-semibold text-brand-amber tracking-[0.08em]">HOMEREVIEW</span>
+                <span className="text-[11px] font-semibold text-brand-amber-deep tracking-[0.08em]">HOMEREVIEW</span>
               </div>
               <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Footer navigation">
                 {[
@@ -308,7 +285,7 @@ export default function HomePage() {
                 ))}
               </nav>
             </div>
-            <p className="text-[11px] text-brand-muted leading-relaxed mt-5">
+            <p className="text-xs text-brand-muted leading-relaxed mt-5">
               HomeReview AI provides general informational analysis only — not professional
               contractor, engineering, or legal advice.{' '}
               <Link href="/terms" className="underline underline-offset-2 hover:text-brand-navy transition-colors">

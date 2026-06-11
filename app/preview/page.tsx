@@ -7,6 +7,7 @@ import { NavBar } from '@/components/ui/NavBar'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Button } from '@/components/ui/Button'
 import type { FollowupResponse, Product } from '@/lib/types'
 import { MAX_FOLLOWUP_QUESTIONS } from '@/lib/validators'
 
@@ -231,7 +232,7 @@ export default function PreviewPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <NavBar onBack={() => router.push('/questions')} />
+      <NavBar step="Step 3 of 3" onBack={() => router.push('/questions')} />
 
       <div className="max-w-xl mx-auto px-5 pt-8 pb-16">
         <ProgressBar step={3} total={3} />
@@ -279,7 +280,7 @@ export default function PreviewPage() {
 
         {/* ── Key insight ──────────────────────────────────────────────── */}
         <div className="bg-white border-l-[3px] border-l-brand-amber border border-brand-border rounded-xl rounded-l-none p-5 mb-8">
-          <p className="text-[11px] font-semibold text-brand-amber uppercase tracking-[0.05em] mb-2.5">
+          <p className="text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.05em] mb-2.5">
             Key Insight
           </p>
           <p className="text-sm text-brand-navy leading-relaxed">{preview.keyInsight}</p>
@@ -332,7 +333,7 @@ export default function PreviewPage() {
               </div>
               <div className="text-right flex-shrink-0 ml-4">
                 <p className="text-3xl font-bold text-white">{primaryPackage.price}</p>
-                <p className="text-[10px] text-white opacity-50 mt-0.5">{primaryPackage.meta}</p>
+                <p className="text-[11px] text-white opacity-70 mt-0.5">{primaryPackage.meta}</p>
               </div>
             </div>
 
@@ -352,19 +353,17 @@ export default function PreviewPage() {
                 </div>
               )}
 
-              <button
+              <Button
+                size="lg"
+                full
                 onClick={() => handlePurchase(primaryPackage.product)}
-                disabled={purchasing}
-                className="btn-primary flex items-center justify-center gap-2 text-sm py-3.5"
+                loading={purchasing}
+                loadingLabel="Redirecting to checkout…"
               >
-                {purchasing ? (
-                  <><LoadingSpinner size={15} color="white" /><span>Redirecting to checkout…</span></>
-                ) : (
-                  `Get ${primaryPackage.label} — ${primaryPackage.price}`
-                )}
-              </button>
+                {`Get ${primaryPackage.label} — ${primaryPackage.price}`}
+              </Button>
 
-              <p className="text-[11px] text-brand-muted text-center mt-2.5">
+              <p className="text-xs text-brand-muted text-center mt-2.5">
                 Secure checkout via Stripe · One-time payment · No subscription
               </p>
             </div>

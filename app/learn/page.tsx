@@ -92,29 +92,30 @@ const ARTICLES: Article[] = [
   },
 ]
 
-const CATEGORIES = ['All', 'HVAC', 'Plumbing', 'Roofing', 'Foundation', 'Hiring']
-
 // ─── Article card ─────────────────────────────────────────────────────────────
 
+/**
+ * Not a link yet — the /learn/[slug] article pages don't exist. Rendering
+ * these as links guaranteed 404s on every card, which is worse than honestly
+ * labeling them "coming soon." Convert back to <Link> as articles ship.
+ */
 function ArticleCard({ article }: { article: Article }) {
   return (
-    <Link
-      href={`/learn/${article.slug}`}
-      className="card hover:border-brand-border-dark transition-all duration-150 group block"
-      aria-label={article.title}
-    >
+    <article className="card">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold text-brand-amber">{article.category}</span>
-        <span className="text-[11px] text-brand-muted">{article.readTime} read</span>
+        <span className="text-[11px] font-semibold text-brand-amber-deep">{article.category}</span>
+        <span className="text-[11px] font-medium px-2 py-0.5 bg-brand-bg text-brand-muted rounded">
+          Coming soon
+        </span>
       </div>
-      <h2 className="text-sm font-semibold text-brand-navy leading-snug mb-2 group-hover:underline underline-offset-2">
+      <h2 className="text-sm font-semibold text-brand-navy leading-snug mb-2">
         {article.title}
       </h2>
       <p className="text-xs text-brand-muted leading-relaxed mb-4">
         {article.summary}
       </p>
-      <p className="text-[11px] text-brand-muted">{article.published}</p>
-    </Link>
+      <p className="text-[11px] text-brand-muted">{article.readTime} read</p>
+    </article>
   )
 }
 
@@ -126,14 +127,14 @@ export default function LearnPage() {
 
   return (
     <main className="min-h-screen bg-brand-bg">
+      <NavBar variant="site" />
       <div className="max-w-2xl mx-auto px-5 py-8">
-        <NavBar />
 
         {/* Header */}
         <div className="mb-10">
           <div className="flex items-center gap-2 mb-6">
             <div className="w-2 h-2 rounded-full bg-brand-amber" aria-hidden="true" />
-            <span className="text-xs font-semibold text-brand-amber tracking-[0.08em]">
+            <span className="text-xs font-semibold text-brand-amber-deep tracking-[0.08em]">
               LEARN
             </span>
           </div>
@@ -144,23 +145,6 @@ export default function LearnPage() {
             Guides for homeowners navigating repairs and contractor quotes —
             written to close the knowledge gap, not fill your inbox.
           </p>
-        </div>
-
-        {/* Category filter — static for v1, interactive in v2 */}
-        <div className="flex flex-wrap gap-2 mb-8" role="list" aria-label="Filter by category">
-          {CATEGORIES.map(cat => (
-            <span
-              key={cat}
-              role="listitem"
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
-                cat === 'All'
-                  ? 'border-brand-navy bg-brand-navy text-white'
-                  : 'border-brand-border bg-white text-brand-muted'
-              }`}
-            >
-              {cat}
-            </span>
-          ))}
         </div>
 
         {/* Featured articles */}

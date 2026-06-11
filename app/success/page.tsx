@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { AlertTriangleIcon } from '@/components/ui/icons'
 import type { GenerateReportResponse, ReportStatusResponse, UploadedFile } from '@/lib/types'
 import { getPendingFiles, clearPendingFiles } from '@/lib/pendingFiles'
 
@@ -215,7 +216,7 @@ function SuccessContent() {
       <main className="min-h-screen bg-brand-bg flex items-center justify-center px-5">
         <div className="max-w-sm w-full bg-white border border-brand-border rounded-2xl p-7 text-center">
           <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto mb-4">
-            <span className="text-lg" aria-hidden="true">⚠</span>
+            <AlertTriangleIcon size={18} className="text-amber-700" />
           </div>
           <p className="text-base font-bold text-brand-navy mb-2">
             Report generation failed
@@ -281,7 +282,12 @@ function SuccessContent() {
             <LoadingSpinner size={24} color="#B8722E" />
           </div>
         </div>
-        <p className="text-base font-bold text-brand-navy mb-2">
+        {/* Rotating copy is decorative for screen readers — announcing a new
+            phrase every 3s is noise. The sr-only line announces once. */}
+        <p className="sr-only" role="status">
+          Building your report. This usually takes about 30 seconds.
+        </p>
+        <p className="text-base font-bold text-brand-navy mb-2" aria-hidden="true">
           {STATUS_MESSAGES[msgIndex]}
         </p>
         <p className="text-sm text-brand-muted mb-6 leading-relaxed">

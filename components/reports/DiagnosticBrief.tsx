@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { NavBar } from '@/components/ui/NavBar'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ChatInterface } from '@/components/ui/ChatInterface'
+import { AlertTriangleIcon, CheckIcon } from '@/components/ui/icons'
 import type { ChatMessage, DiagnosticBriefReport } from '@/lib/types'
 import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 
@@ -73,17 +74,17 @@ function QuestionRow({
     <li className={index > 0 ? 'border-t border-brand-border pt-3' : ''}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full text-left flex items-start gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-amber"
+        className="w-full text-left flex items-start gap-3"
         aria-expanded={open}
       >
-        <span className="text-xs font-semibold text-brand-amber mt-0.5 w-5 flex-shrink-0 tabular-nums">
+        <span className="text-xs font-semibold text-brand-amber-deep mt-0.5 w-5 flex-shrink-0 tabular-nums">
           {index + 1}.
         </span>
         <span className="text-sm font-semibold text-brand-navy leading-snug flex-1">
           {question}
         </span>
         <span
-          className="text-brand-muted flex-shrink-0 mt-0.5 transition-transform duration-200"
+          className="text-brand-muted flex-shrink-0 mt-0.5 transition-transform duration-200 print:hidden"
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
           aria-hidden="true"
         >
@@ -92,11 +93,11 @@ function QuestionRow({
           </svg>
         </span>
       </button>
-      {open && (
-        <p className="text-sm text-brand-muted leading-relaxed mt-2 ml-8">
-          {whyItMatters}
-        </p>
-      )}
+      {/* Collapsed answers still render in print — homeowners hand this PDF
+          to contractors, so the "why it matters" context must survive export. */}
+      <p className={`text-sm text-brand-muted leading-relaxed mt-2 ml-8 ${open ? '' : 'hidden print:block'}`}>
+        {whyItMatters}
+      </p>
     </li>
   )
 }
@@ -118,13 +119,13 @@ export function DiagnosticBrief({
 
   return (
     <main className="min-h-screen bg-brand-bg print:bg-white">
+      <NavBar />
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar />
 
         {/* Header */}
         <div className="flex items-start justify-between mb-6 pb-5 border-b border-brand-border">
           <div>
-            <p className="text-[11px] font-semibold text-brand-amber uppercase tracking-[0.06em] mb-1">
+            <p className="text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.06em] mb-1">
               Diagnostic Brief
             </p>
             <h1 className="text-2xl font-bold text-brand-navy mb-1">{categoryLabel}</h1>
@@ -233,7 +234,7 @@ export function DiagnosticBrief({
 
               {/* Questions — accordion for scannability */}
               <SectionCard title="6. Questions to Ask Every Contractor">
-                <p className="text-xs text-brand-muted mb-4">
+                <p className="text-xs text-brand-muted mb-4 print:hidden">
                   Tap a question to see why it matters.
                 </p>
                 <ol className="space-y-3">
@@ -256,7 +257,7 @@ export function DiagnosticBrief({
                   <ul className="space-y-2">
                     {report.redFlags.map((flag, i) => (
                       <li key={i} className="flex gap-2 text-xs text-red-700 leading-relaxed">
-                        <span className="flex-shrink-0 mt-0.5" aria-hidden="true">⚠</span>
+                        <AlertTriangleIcon size={13} className="flex-shrink-0 mt-0.5" />
                         <span>{flag}</span>
                       </li>
                     ))}
@@ -268,7 +269,7 @@ export function DiagnosticBrief({
                   <ul className="space-y-2">
                     {report.insistOnWriting.map((item, i) => (
                       <li key={i} className="flex gap-2 text-xs text-emerald-800 leading-relaxed">
-                        <span className="flex-shrink-0 mt-0.5" aria-hidden="true">✓</span>
+                        <CheckIcon size={13} className="flex-shrink-0 mt-0.5" />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -279,8 +280,9 @@ export function DiagnosticBrief({
           )
         })()}
 
-        {/* Chat — activated state for paid users */}
-        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden">
+        {/* Chat — activated state for paid users. Hidden in print: the PDF is
+            the report artifact, an empty chat box adds nothing on paper. */}
+        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden print:hidden">
           <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
             <p className="text-sm font-semibold text-white">Your advisor is ready</p>

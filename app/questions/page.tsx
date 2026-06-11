@@ -21,10 +21,14 @@ export default function QuestionsPage() {
   const router = useRouter()
   const {
     flow, category, description, zip,
-    questions, setQuestions, setAnswers, setSessionId, setPreview,
+    questions, answers, setQuestions, setAnswers, setSessionId, setPreview,
   } = useSessionStore()
 
-  const [localAnswers, setLocalAnswers]   = useState<Record<string, string>>({})
+  // Seed from previously saved answers so navigating back from the preview
+  // doesn't wipe what the user already typed.
+  const [localAnswers, setLocalAnswers]   = useState<Record<string, string>>(() =>
+    Object.fromEntries(answers.map(a => [a.questionId, a.answer])),
+  )
   const [loadingQuestions, setLoadingQ]   = useState(false)
   const [submitting, setSubmitting]       = useState(false)
   const [processingMsg, setProcessingMsg] = useState(PROCESSING_MESSAGES[0])
@@ -190,7 +194,7 @@ export default function QuestionsPage() {
                 htmlFor={`answer-${q.id}`}
                 className="block text-sm font-semibold text-brand-navy mb-3 leading-snug"
               >
-                <span className="text-brand-amber font-bold mr-2">{i + 1}.</span>
+                <span className="text-brand-amber-deep font-bold mr-2">{i + 1}.</span>
                 {q.question}
               </label>
               <textarea
@@ -223,7 +227,7 @@ export default function QuestionsPage() {
         >
           Get my free preview →
         </button>
-        <p className="text-[11px] text-brand-muted text-center">
+        <p className="text-xs text-brand-muted text-center">
           Free · No payment required · Takes about 30 seconds
         </p>
       </div>

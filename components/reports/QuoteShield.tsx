@@ -72,7 +72,7 @@ function VerdictBadge({ verdict, type }: { verdict: string; type: 'scope' | 'pri
     (type === 'scope'
       ? VERDICT_CONFIG.scope[verdict as keyof typeof VERDICT_CONFIG.scope]
       : VERDICT_CONFIG.pricing[verdict as keyof typeof VERDICT_CONFIG.pricing]) ??
-    { bg: 'bg-gray-100', text: 'text-gray-700' }
+    { bg: 'bg-brand-bg', text: 'text-brand-muted' }
 
   return (
     <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg ${cfg.bg} ${cfg.text}`}>
@@ -93,7 +93,7 @@ function SectionCard({ title, badge, updated, children }: {
         <div className="flex items-center gap-2 flex-wrap">
           <p className="section-label mb-0">{title}</p>
           {updated && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
+            <span className="text-[11px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
               Updated
             </span>
           )}
@@ -209,6 +209,28 @@ export function QuoteShield({
 
   const handlePrint = () => window.print()
 
+  // ── Section numbering ────────────────────────────────────────────────────
+  //
+  // Upsells, missing-scope, and the flags pair are conditionally rendered.
+  // Numbering is computed from what actually renders so a clean quote with no
+  // upsells reads 1,2,3… instead of 1,2,4… (which looks like a rendering bug).
+  const sections = report ? (() => {
+    let n = 0
+    const next = () => ++n
+    return {
+      scope:       next(),
+      pricing:     next(),
+      upsells:     report.upsells.length > 0 ? next() : 0,
+      missing:     report.missingItems.length > 0 ? next() : 0,
+      flags:       report.redFlags.length > 0 || report.greenFlags.length > 0 ? next() : 0,
+      negotiation: next(),
+      questions:   next(),
+      secondQuote: next(),
+      beforeSign:  next(),
+    }
+  })() : null
+  const bothFlags = !!report && report.redFlags.length > 0 && report.greenFlags.length > 0
+
   // ── Tab buttons ──────────────────────────────────────────────────────────
 
   const tabs: Array<{ id: Tab; label: string }> = [
@@ -218,26 +240,29 @@ export function QuoteShield({
 
   return (
     <main className="min-h-screen bg-brand-bg print:bg-white">
+      <NavBar />
       <div className="max-w-xl mx-auto px-5 py-8">
-        <NavBar />
 
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div>
+            <p className="text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.06em] mb-1">
+              Quote Shield
+            </p>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h1 className="text-xl font-semibold text-brand-navy">Quote Shield</h1>
+              <h1 className="text-2xl font-bold text-brand-navy">{categoryLabel}</h1>
               {!updatesExpired ? (
                 <span className="text-[11px] font-medium px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md">
                   Active · {daysRemaining}d remaining
                 </span>
               ) : (
-                <span className="text-[11px] font-medium px-2.5 py-1 bg-gray-100 text-gray-500 rounded-md">
+                <span className="text-[11px] font-medium px-2.5 py-1 bg-brand-bg text-brand-muted rounded-md">
                   Updates expired
                 </span>
               )}
             </div>
             <p className="text-sm text-brand-muted">
-              {categoryLabel} · Post-quote · Purchased {formatDate(paidAt)}
+              Post-quote analysis · Purchased {formatDate(paidAt)}
             </p>
           </div>
           <button
@@ -417,27 +442,27 @@ export function QuoteShield({
         )}
 
         {/* ── REPORT TAB ─────────────────────────────────────────────────────── */}
-        {!reportFailed && tab === 'report' && report && (
+        {!reportFailed && tab === 'report' && report && sections && (
           <div role="tabpanel" aria-label="Report">
-            {/* 1. Scope */}
-            <SectionCard title="1. Scope Confirmation" badge={<VerdictBadge verdict={report.scopeVerdict} type="scope" />}>
+            {/* Scope */}
+            <SectionCard title={`${sections.scope}. Scope Confirmation`} badge={<VerdictBadge verdict={report.scopeVerdict} type="scope" />}>
               <p className="text-sm text-brand-muted leading-relaxed">{report.scopeAnalysis}</p>
             </SectionCard>
 
-            {/* 2. Pricing */}
-            <SectionCard title="2. Pricing Verdict" badge={<VerdictBadge verdict={report.pricingVerdict} type="pricing" />}>
+            {/* Pricing */}
+            <SectionCard title={`${sections.pricing}. Pricing Verdict`} badge={<VerdictBadge verdict={report.pricingVerdict} type="pricing" />}>
               <p className="text-sm text-brand-muted leading-relaxed mb-3">{report.pricingAnalysis}</p>
               <div className="inline-block px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
-                <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-0.5">Fair range</p>
+                <p className="text-[11px] text-blue-700 font-semibold uppercase tracking-wider mb-0.5">Fair range</p>
                 <p className="text-xl font-semibold text-blue-800">
                   ${report.estimatedFairMin.toLocaleString()}–${report.estimatedFairMax.toLocaleString()}
                 </p>
               </div>
             </SectionCard>
 
-            {/* 3. Upsells */}
+            {/* Upsells */}
             {report.upsells.length > 0 && (
-              <SectionCard title="3. Upsell & Padding Detection">
+              <SectionCard title={`${sections.upsells}. Upsell & Padding Detection`}>
                 <ul className="space-y-2">
                   {report.upsells.map((u, i) => (
                     <li key={i} className="p-3 bg-red-50 border border-red-100 rounded-xl">
@@ -454,9 +479,9 @@ export function QuoteShield({
               </SectionCard>
             )}
 
-            {/* 4. Missing scope */}
+            {/* Missing scope */}
             {report.missingItems.length > 0 && (
-              <SectionCard title="4. Missing Scope — Should Be in the Quote">
+              <SectionCard title={`${sections.missing}. Missing Scope — Should Be in the Quote`}>
                 <ul className="space-y-2">
                   {report.missingItems.map((item, i) => (
                     <li key={i} className="flex gap-2.5">
@@ -468,11 +493,11 @@ export function QuoteShield({
               </SectionCard>
             )}
 
-            {/* 5. Red & green flags */}
+            {/* Red & green flags */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
               {report.redFlags.length > 0 && (
                 <div className="card">
-                  <p className="section-label text-red-600">5a. Red Flags</p>
+                  <p className="section-label text-red-600">{`${sections.flags}${bothFlags ? 'a' : ''}. Red Flags`}</p>
                   <ul className="space-y-2">
                     {report.redFlags.map((f, i) => (
                       <li key={i} className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2 leading-relaxed">{f}</li>
@@ -482,7 +507,7 @@ export function QuoteShield({
               )}
               {report.greenFlags.length > 0 && (
                 <div className="card">
-                  <p className="section-label text-emerald-700">5b. Green Flags</p>
+                  <p className="section-label text-emerald-700">{`${sections.flags}${bothFlags ? 'b' : ''}. Green Flags`}</p>
                   <ul className="space-y-2">
                     {report.greenFlags.map((f, i) => (
                       <li key={i} className="text-xs text-emerald-800 bg-emerald-50 rounded-lg px-3 py-2 leading-relaxed">{f}</li>
@@ -492,24 +517,24 @@ export function QuoteShield({
               )}
             </div>
 
-            {/* 6. Negotiation guide */}
-            <SectionCard title="6. Negotiation Guide">
+            {/* Negotiation guide */}
+            <SectionCard title={`${sections.negotiation}. Negotiation Guide`}>
               <p className="text-sm text-brand-muted leading-relaxed">{report.negotiationGuide}</p>
             </SectionCard>
 
-            {/* 7. Contractor questions */}
-            <SectionCard title={`7. ${report.contractorQuestions.length} Questions for This Contractor`}>
+            {/* Contractor questions */}
+            <SectionCard title={`${sections.questions}. ${report.contractorQuestions.length} Questions for This Contractor`}>
               <ol className="space-y-5">
                 {report.contractorQuestions.map((q, i) => (
                   <li key={i} className={`${i < report.contractorQuestions.length - 1 ? 'pb-5 border-b border-brand-border' : ''}`}>
                     <p className="text-sm font-semibold text-brand-navy mb-3">{i + 1}. {q.question}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="p-3 bg-emerald-50 rounded-xl">
-                        <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1.5">Good answer</p>
+                        <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider mb-1.5">Good answer</p>
                         <p className="text-xs text-emerald-800 leading-relaxed">{q.goodAnswer}</p>
                       </div>
                       <div className="p-3 bg-red-50 rounded-xl">
-                        <p className="text-[10px] font-semibold text-red-700 uppercase tracking-wider mb-1.5">Concerning</p>
+                        <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wider mb-1.5">Concerning</p>
                         <p className="text-xs text-red-800 leading-relaxed">{q.concerningAnswer}</p>
                       </div>
                     </div>
@@ -518,10 +543,10 @@ export function QuoteShield({
               </ol>
             </SectionCard>
 
-            {/* 8 & 9. Second quote + before you sign */}
+            {/* Second quote + before you sign */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="card">
-                <p className="section-label">8. Get a Second Quote?</p>
+                <p className="section-label">{sections.secondQuote}. Get a Second Quote?</p>
                 <span className={`inline-block text-xs font-semibold px-2.5 py-1.5 rounded-lg mb-2.5 ${
                   report.getSecondQuote ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
                 }`}>
@@ -530,7 +555,7 @@ export function QuoteShield({
                 <p className="text-sm text-brand-muted leading-relaxed">{report.secondQuoteReason}</p>
               </div>
               <div className="card">
-                <p className="section-label text-emerald-700">9. Before You Sign</p>
+                <p className="section-label text-emerald-700">{sections.beforeSign}. Before You Sign</p>
                 <ul className="space-y-2">
                   {report.beforeYouSign.map((item, i) => (
                     <li key={i} className="flex gap-2">
@@ -543,8 +568,8 @@ export function QuoteShield({
             </div>
 
             {/* Disclaimer */}
-            <div className="mt-4 p-3.5 bg-gray-50 border border-brand-border rounded-xl">
-              <p className="text-[11px] text-brand-muted leading-relaxed">
+            <div className="mt-4 p-3.5 bg-white border border-brand-border rounded-xl">
+              <p className="text-xs text-brand-muted leading-relaxed">
                 HomeReview AI provides informational analysis, not licensed professional advice.
                 This report is for guidance only and does not constitute legal or financial advice.
               </p>
@@ -595,7 +620,7 @@ export function QuoteShield({
                         <p className="text-sm font-semibold text-brand-navy">
                           {UPDATE_TYPE_LABELS[update.updateType]}
                         </p>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
                           Report updated
                         </span>
                         <p className="text-xs text-brand-muted ml-auto">{formatDate(update.timestamp)}</p>
@@ -606,7 +631,7 @@ export function QuoteShield({
                           {update.changedSections.map((s) => (
                             <span
                               key={s}
-                              className="text-[10px] px-2 py-0.5 bg-gray-100 text-brand-muted rounded"
+                              className="text-[11px] px-2 py-0.5 bg-brand-bg text-brand-muted rounded"
                             >
                               {s}
                             </span>
@@ -641,8 +666,9 @@ export function QuoteShield({
             </div>
           </div>
         )}
-        {/* Chat — activated state signals ongoing support, not an appended feature */}
-        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden">
+        {/* Chat — activated state signals ongoing support, not an appended feature.
+            Hidden in print: the PDF is the report artifact. */}
+        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden print:hidden">
           <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
             <p className="text-sm font-semibold text-white">Your advisor is ready</p>

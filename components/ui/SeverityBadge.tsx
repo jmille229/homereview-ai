@@ -5,6 +5,9 @@ interface SeverityBadgeProps {
   className?: string
 }
 
+// Severity is a four-step ramp. Emergency uses a SOLID fill — the only solid
+// badge in the system — so it cannot be confused with Urgent's tint at a
+// glance, and color-blind users get a lightness difference, not just a hue.
 const SEVERITY_CONFIG: Record<
   Severity,
   { bg: string; text: string; dot: string; label: string }
@@ -18,7 +21,7 @@ const SEVERITY_CONFIG: Record<
   Monitor: {
     bg:    'bg-amber-50',
     text:  'text-amber-800',
-    dot:   'bg-amber-400',
+    dot:   'bg-brand-amber',
     label: 'Monitor — watch for changes',
   },
   Urgent: {
@@ -28,9 +31,9 @@ const SEVERITY_CONFIG: Record<
     label: 'Urgent — act within 1–2 weeks',
   },
   Emergency: {
-    bg:    'bg-rose-100',
-    text:  'text-rose-900',
-    dot:   'bg-rose-600',
+    bg:    'bg-red-600',
+    text:  'text-white',
+    dot:   'bg-white',
     label: 'Emergency — act within 24 hours',
   },
 }
