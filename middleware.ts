@@ -93,34 +93,43 @@ function isStrictPath(pathname: string): boolean {
   return STRICT_CSP_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 
-const SHARED_DIRECTIVES = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "style-src 'self' 'unsafe-inline'", // Tailwind/Next inject inline styles; far lower risk than script
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  "connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
-  "frame-ancestors 'self'",
-  "form-action 'self'",
-]
+// Vercel's preview toolbar (vercel.live) needs extra sources. Added on PREVIEW
+// deployments ONLY — production CSP is unchanged — so the toolbar stops throwing
+// CSP errors during preview testing without loosening the live policy.
+const isPreview = process.env.VERCEL_ENV === 'preview'
+
+function sharedDirectives(): string[] {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    `style-src 'self' 'unsafe-inline'${isPreview ? ' https://vercel.live' : ''}`, // Tailwind/Next inject inline styles; far lower risk than script
+    `img-src 'self' data: blob:${isPreview ? ' https://vercel.live https://vercel.com' : ''}`,
+    `font-src 'self'${isPreview ? ' https://vercel.live https://assets.vercel.com' : ''}`,
+    `connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live https://*.pusher.com wss://*.pusher.com' : ''}`,
+    `frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live' : ''}`,
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+  ]
+}
 
 function nonceCsp(nonce: string): string {
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
     'https://challenges.cloudflare.com', // Turnstile widget script
+    isPreview ? 'https://vercel.live' : '',
     isDev ? "'unsafe-eval'" : '',
   ].filter(Boolean).join(' ')
-  return [`script-src ${scriptSrc}`, ...SHARED_DIRECTIVES].join('; ')
+  return [`script-src ${scriptSrc}`, ...sharedDirectives()].join('; ')
 }
 
 function staticCsp(): string {
+  const live = isPreview ? ' https://vercel.live' : ''
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'"
-  return [scriptSrc, ...SHARED_DIRECTIVES].join('; ')
+    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'${live}`
+    : `script-src 'self' 'unsafe-inline'${live}`
+  return [scriptSrc, ...sharedDirectives()].join('; ')
 }
 
 function handleDocument(req: NextRequest): NextResponse {
