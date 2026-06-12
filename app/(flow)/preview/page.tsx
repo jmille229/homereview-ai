@@ -112,12 +112,12 @@ function FollowupQA({ sessionId }: { sessionId: string }) {
           {history.map((pair, i) => (
             <div key={i}>
               <div className="flex justify-end mb-1.5">
-                <div className="bg-brand-navy text-white text-sm rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] leading-relaxed">
+                <div className="bg-brand-navy text-white text-sm rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] leading-relaxed break-words">
                   {pair.question}
                 </div>
               </div>
               <div className="flex justify-start">
-                <div className="bg-brand-bg border border-brand-border text-sm text-brand-navy rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%] leading-relaxed">
+                <div className="bg-brand-bg border border-brand-border text-sm text-brand-navy rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%] leading-relaxed break-words">
                   {pair.answer}
                 </div>
               </div>
@@ -259,7 +259,7 @@ export default function PreviewPage() {
         </div>
 
         {/* ── Severity + cost ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div className="bg-white border border-brand-border rounded-xl p-5">
             <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
               Severity
@@ -271,7 +271,7 @@ export default function PreviewPage() {
             <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
               Typical Cost Range
             </p>
-            <p className="text-2xl font-bold text-brand-navy mb-1">
+            <p className="text-2xl font-bold text-brand-navy mb-1 tabular-nums break-words">
               ${preview.costMin.toLocaleString()}–${preview.costMax.toLocaleString()}
             </p>
             <p className="text-xs text-brand-muted">For this type of issue in your area</p>
@@ -323,15 +323,15 @@ export default function PreviewPage() {
 
           {/* Primary package — prominent */}
           <div className="border-2 border-brand-navy rounded-2xl overflow-hidden mb-3">
-            <div className="bg-brand-navy px-6 py-4 flex items-start justify-between">
-              <div>
+            <div className="bg-brand-navy px-5 sm:px-6 py-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-2 ${primaryPackage.badgeClass}`}>
                   {primaryPackage.badge}
                 </span>
-                <h3 className="text-base font-bold text-white">{primaryPackage.label}</h3>
+                <h3 className="text-base font-bold text-white break-words">{primaryPackage.label}</h3>
                 <p className="text-xs text-white opacity-60 mt-0.5">{primaryPackage.tagline}</p>
               </div>
-              <div className="text-right flex-shrink-0 ml-4">
+              <div className="text-right flex-shrink-0 max-w-[42%]">
                 <p className="text-3xl font-bold text-white">{primaryPackage.price}</p>
                 <p className="text-[11px] text-white opacity-70 mt-0.5">{primaryPackage.meta}</p>
               </div>

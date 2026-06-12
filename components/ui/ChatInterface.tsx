@@ -111,7 +111,7 @@ export function ChatInterface({
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] leading-relaxed ${
+                className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] leading-relaxed break-words ${
                   msg.role === 'user'
                     ? 'bg-brand-navy text-white rounded-tr-sm'
                     : 'bg-brand-bg border border-brand-border text-brand-navy rounded-tl-sm'
