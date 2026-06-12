@@ -126,9 +126,15 @@ function nonceCsp(nonce: string): string {
 
 function staticCsp(): string {
   const live = isPreview ? ' https://vercel.live' : ''
-  const scriptSrc = isDev
-    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'${live}`
-    : `script-src 'self' 'unsafe-inline'${live}`
+  // Turnstile's script (challenges.cloudflare.com) MUST be allowed here too.
+  // A CSP applies to the loaded document and does NOT change during client-side
+  // navigation. A user who lands on a marketing page (this policy) and
+  // SPA-navigates to /intake keeps THIS document's CSP — /intake's own nonce
+  // policy never takes effect for that navigation — so without the Cloudflare
+  // host here the widget's api.js is blocked on every in-app navigation and only
+  // works after a full page reload.
+  const base = "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"
+  const scriptSrc = isDev ? `${base} 'unsafe-eval'${live}` : `${base}${live}`
   return [scriptSrc, ...sharedDirectives()].join('; ')
 }
 
