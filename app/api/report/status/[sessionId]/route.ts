@@ -24,6 +24,7 @@ export async function GET(
 ): Promise<NextResponse> {
   // ── Rate limit — dedicated status limiter (300/h) sized for 2s polling ─────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await statusLimiter.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })

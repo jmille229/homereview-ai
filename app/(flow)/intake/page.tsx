@@ -16,6 +16,7 @@ import { CATEGORY_LABELS } from '@/lib/constants'
 import type { Flow, UploadedFile } from '@/lib/types'
 import { savePendingFiles } from '@/lib/pendingFiles'
 import { Button } from '@/components/ui/Button'
+import { TurnstileGate, turnstileRequired } from '@/components/ui/TurnstileGate'
 import {
   CATEGORY_ICONS,
   ClipboardIcon,
@@ -149,7 +150,11 @@ export default function IntakePage() {
   // When the flow was already chosen (homepage CTA), show a compact confirmed
   // row instead of re-asking the same question — the user can still change it.
   const [pickerExpanded, setPickerExpanded]   = useState(false)
+  // Cloudflare Turnstile token (only when the bot gate is configured).
+  const [gateToken, setGateToken]             = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const gateRequired = turnstileRequired()
 
   const showFlowPicker = !flow || pickerExpanded
   const selectedFlow   = FLOW_OPTIONS.find(o => o.value === flow)
@@ -191,16 +196,40 @@ export default function IntakePage() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!flow) { setSubmitError('Please select where you are in the process.'); return }
     if (!category) { setSubmitError('Please select the area of your home.'); return }
     if (description.trim().length < 20) { setSubmitError('Please describe the situation in a bit more detail.'); return }
     // Catch partial zips here — otherwise the server rejects them at the END of
     // the flow (after the user has answered questions), which is far worse UX.
     if (zip.length > 0 && zip.length < 5) { setSubmitError('Please enter all 5 digits of your zip code, or leave it blank.'); return }
+    if (gateRequired && !gateToken) { setSubmitError('Please complete the verification below to continue.'); return }
 
     setSubmitError(null)
     setSubmitting(true)
+
+    // Exchange the Turnstile token for a short-lived preview pass before the
+    // questions page fires its AI call. Skipped entirely when the gate is off.
+    if (gateRequired && gateToken) {
+      try {
+        const res = await fetch('/api/gate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: gateToken }),
+        })
+        if (!res.ok) {
+          setSubmitError('Verification failed. Please try the checkbox again.')
+          setGateToken(null)
+          setSubmitting(false)
+          return
+        }
+      } catch {
+        setSubmitError('Network error during verification. Please try again.')
+        setSubmitting(false)
+        return
+      }
+    }
+
     savePendingFiles(files.map(f => ({
       name: f.name, type: f.type, size: f.size,
       data: f.dataUrl.split(',')[1] ?? '',
@@ -210,7 +239,8 @@ export default function IntakePage() {
   }
 
   const zipValid  = zip.length === 0 || zip.length === 5
-  const canSubmit = !!flow && !!category && description.trim().length >= 20 && zipValid && !submitting
+  const canSubmit = !!flow && !!category && description.trim().length >= 20 && zipValid
+    && (!gateRequired || !!gateToken) && !submitting
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -430,6 +460,9 @@ export default function IntakePage() {
 
         {/* ── Error + Submit ────────────────────────────────────────────── */}
         {submitError && <ErrorBanner message={submitError} />}
+
+        {/* Bot gate — renders only when configured (NEXT_PUBLIC_TURNSTILE_SITE_KEY) */}
+        <TurnstileGate onToken={setGateToken} />
 
         <Button
           size="lg"

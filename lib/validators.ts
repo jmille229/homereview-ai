@@ -24,6 +24,8 @@ export const ALLOWED_MIME_TYPES: AllowedMimeType[] = [
 export const MAX_FILE_SIZE_BYTES    = 2 * 1024 * 1024
 export const MAX_FILES_PER_REQUEST  = 3
 export const MAX_BODY_BYTES         = 9 * 1024 * 1024
+/** Hard cap for request bodies that never legitimately carry files. */
+export const MAX_JSON_BYTES         = 64 * 1024
 export const MAX_FOLLOWUP_QUESTIONS = 2
 
 export const CATEGORY_IDS: CategoryId[] = [
@@ -118,6 +120,10 @@ export const updateReportRequestSchema = z.object({
   ] as [UpdateType, ...UpdateType[]]),
   files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
   note:  z.string().max(2000).optional(),
+})
+
+export const gateRequestSchema = z.object({
+  token: z.string().min(1).max(4096),
 })
 
 export const reclaimRequestSchema = z.object({

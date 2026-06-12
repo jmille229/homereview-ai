@@ -86,10 +86,15 @@ export const statusLimiter = new Ratelimit({
  * and trivially spoofed — an attacker could rotate through arbitrary IPs and
  * bypass all rate limiting.
  *
+ * Returns null when the IP cannot be resolved in a non-dev environment. Callers
+ * MUST reject in that case (fail closed): previously a missing header collapsed
+ * every such request into one shared `'unknown'` bucket, which both locks out
+ * legitimate users and lets an attacker escape per-IP accounting.
+ *
  * In development, a fixed string is returned so rate limiting does not
  * interfere with local testing.
  */
-export function getClientIp(req: Request): string {
+export function getClientIp(req: Request): string | null {
   if (process.env.NODE_ENV === 'development') return '127.0.0.1'
-  return req.headers.get('x-real-ip') ?? 'unknown'
+  return req.headers.get('x-real-ip')
 }

@@ -56,7 +56,12 @@ export default function QuestionsPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ flow, category, description, zip, files, answers }),
       })
-      const json: AnalyzeResponse | { error: string } = await res.json()
+      const json: AnalyzeResponse | { error: string; code?: string } = await res.json()
+      if (res.status === 403 && 'code' in json && json.code === 'gate') {
+        // Preview pass expired — send the user back to re-verify on intake.
+        router.replace('/intake')
+        return
+      }
       if (!res.ok || 'error' in json) {
         setError(('error' in json ? json.error : null) ?? 'Something went wrong. Please try again.')
         setSubmitting(false)
@@ -87,8 +92,12 @@ export default function QuestionsPage() {
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ flow, category, description }),
         })
-        const json: QuestionsResponse | { error: string } = await res.json()
+        const json: QuestionsResponse | { error: string; code?: string } = await res.json()
         if (cancelled) return
+        if (res.status === 403 && 'code' in json && json.code === 'gate') {
+          router.replace('/intake')
+          return
+        }
         if (!res.ok || 'error' in json || !(json as QuestionsResponse).questions.length) {
           await generatePreview([])
           return
@@ -102,7 +111,7 @@ export default function QuestionsPage() {
     }
     fetchQuestions()
     return () => { cancelled = true }
-  }, [flow, category, description, questions.length, generatePreview, setQuestions])
+  }, [flow, category, description, questions.length, generatePreview, setQuestions, router])
 
   const handleSubmit = () => {
     const answers: UserAnswer[] = (questions as AiQuestion[]).map(q => ({

@@ -5,10 +5,11 @@ import { callClaudeConversation } from '@/lib/claude'
 import { getSession, updateSession } from '@/lib/redis'
 import { chatLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildChatSystem, sanitizeInput } from '@/lib/prompts'
-import { chatRequestSchema } from '@/lib/validators'
+import { chatRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
 import type { ChatMessage, ChatResponse, StoredSession } from '@/lib/types'
 import { getCategoryLabel } from '@/lib/constants'
 import { hasValidAccess } from '@/lib/access'
+import { parseJsonBody } from '@/lib/http'
 
 export const runtime   = 'nodejs'
 export const maxDuration = 30
@@ -24,20 +25,19 @@ export async function POST(req: Request): Promise<NextResponse> {
   // Chat is sold as "unlimited". The report limiter (20/day) would break that
   // promise. This limiter allows 200/day — enough for genuine use, blocks bots.
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await chatLimiter.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
   }
 
   // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  const parsed = await parseJsonBody(req, MAX_JSON_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof chatRequestSchema.parse>
   try {
-    data = chatRequestSchema.parse(body)
+    data = chatRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(

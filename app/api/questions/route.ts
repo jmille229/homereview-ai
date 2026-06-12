@@ -4,15 +4,28 @@ import { ZodError } from 'zod'
 import { callClaude } from '@/lib/claude'
 import { previewLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildQuestionsSystem, sanitizeInput } from '@/lib/prompts'
-import { questionsRequestSchema, questionsResultSchema } from '@/lib/validators'
+import { questionsRequestSchema, questionsResultSchema, MAX_BODY_BYTES } from '@/lib/validators'
 import type { QuestionsResponse } from '@/lib/types'
 import { getCategoryLabel } from '@/lib/constants'
+import { parseJsonBody } from '@/lib/http'
+import { hasValidPreviewPass } from '@/lib/gate'
+import { consumeDailyBudget } from '@/lib/budget'
+import { filesHaveValidSignatures } from '@/lib/fileValidation'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request): Promise<NextResponse> {
+  // ── Bot gate — must hold a valid preview pass (Turnstile) ──────────────────
+  if (!hasValidPreviewPass()) {
+    return NextResponse.json(
+      { error: 'GATE: Please complete the verification step.', code: 'gate' },
+      { status: 403 },
+    )
+  }
+
   // ── Rate limit (shared with preview — same session, same window) ───────────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await previewLimiter.limit(ip)
   if (!success) {
     return NextResponse.json(
@@ -21,15 +34,13 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  // ── Parse and validate (real-body size limit) ──────────────────────────────
+  const parsed = await parseJsonBody(req, MAX_BODY_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof questionsRequestSchema.parse>
   try {
-    data = questionsRequestSchema.parse(body)
+    data = questionsRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(
@@ -38,6 +49,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       )
     }
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  if (data.files && !filesHaveValidSignatures(data.files)) {
+    return NextResponse.json(
+      { error: 'One or more files appear corrupted or are not a supported image/PDF.' },
+      { status: 400 },
+    )
+  }
+
+  // ── Global daily ceiling — circuit breaker against distributed cost-DoS ────
+  if (!(await consumeDailyBudget('questions'))) {
+    return NextResponse.json({ questions: [] } as QuestionsResponse, { status: 200 })
   }
 
   const categoryLabel = getCategoryLabel(data.category)

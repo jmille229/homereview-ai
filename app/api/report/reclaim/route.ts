@@ -3,7 +3,8 @@ import { ZodError } from 'zod'
 
 import { getSession } from '@/lib/redis'
 import { reclaimLimiter, getClientIp } from '@/lib/ratelimit'
-import { reclaimRequestSchema } from '@/lib/validators'
+import { reclaimRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
+import { parseJsonBody } from '@/lib/http'
 import {
   accessCookieName,
   accessCookieOptions,
@@ -27,6 +28,7 @@ export const runtime = 'nodejs'
  */
 export async function POST(req: Request): Promise<NextResponse> {
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await reclaimLimiter.limit(ip)
   if (!success) {
     return NextResponse.json(
@@ -35,14 +37,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  const parsed = await parseJsonBody(req, MAX_JSON_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof reclaimRequestSchema.parse>
   try {
-    data = reclaimRequestSchema.parse(body)
+    data = reclaimRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(
