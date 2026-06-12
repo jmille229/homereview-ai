@@ -3,7 +3,7 @@ import { z, ZodError } from 'zod'
 import { waitUntil } from '@vercel/functions'
 
 import { callClaude } from '@/lib/claude'
-import { getSession, updateSession, acquireGenerationLock, markReportComplete, markReportFailed } from '@/lib/redis'
+import { getSession, updateSession, acquireGenerationLock, markReportComplete, markReportFailed, indexSessionForRecovery } from '@/lib/redis'
 import { reportLimiter, getClientIp } from '@/lib/ratelimit'
 import {
   buildDiagnosticBriefSystem,
@@ -304,6 +304,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       product,
       reportStatus: 'generating',
     })
+    // Index for email-based recovery (best-effort — never block the purchase).
+    if (payerEmail) {
+      try { await indexSessionForRecovery(payerEmail, reportSessionId) } catch { /* non-fatal */ }
+    }
   } catch (err) {
     await releaseLock()
     console.error('[report] Failed to mark paid/generating:', {

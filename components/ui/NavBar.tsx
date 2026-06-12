@@ -35,6 +35,7 @@ const SITE_LINKS = [
   { href: '/#products',     label: 'Reports' },
   { href: '/learn',         label: 'Learn' },
   { href: '/about',         label: 'About' },
+  { href: '/recover',       label: 'My report' },
 ]
 
 const START_CLASSES =

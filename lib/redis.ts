@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis'
+import { createHash } from 'crypto'
 import type { StoredSession } from './types'
 
 // ─── Singleton client ─────────────────────────────────────────────────────────
@@ -184,4 +185,33 @@ export async function markStripeEventProcessed(eventId: string): Promise<boolean
   const key = `stripe:event:${eventId}`
   const result = await redis.set(key, '1', { nx: true, ex: 60 * 60 * 24 * 7 })
   return result !== null
+}
+
+// ─── Report recovery (email → sessions) ────────────────────────────────────────
+//
+// A reverse index so a buyer who has lost their report URL can recover access by
+// entering the email they used at checkout. The key is a hash of the email (not
+// the plaintext) so the index can't be trivially enumerated. TTL matches the
+// longest access window and is refreshed on each purchase.
+
+const RECOVERY_TTL_SECONDS = 60 * 60 * 24 * 60 // 60 days
+
+function recoveryKey(email: string): string {
+  const normalized = email.toLowerCase().trim()
+  const hash = createHash('sha256').update(normalized).digest('hex')
+  return `recover:${hash}`
+}
+
+/** Adds a paid session to its payer's recovery index. Best-effort. */
+export async function indexSessionForRecovery(email: string, sessionId: string): Promise<void> {
+  const key = recoveryKey(email)
+  await redis.sadd(key, sessionId)
+  await redis.expire(key, RECOVERY_TTL_SECONDS)
+}
+
+/** Returns the session IDs associated with a checkout email (may include
+ *  expired ones — callers must re-fetch and filter). */
+export async function findSessionIdsByEmail(email: string): Promise<string[]> {
+  const ids = await redis.smembers(recoveryKey(email))
+  return (ids as string[]) ?? []
 }

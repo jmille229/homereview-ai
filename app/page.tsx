@@ -275,9 +275,10 @@ export default function HomePage() {
               </div>
               <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Footer navigation">
                 {[
-                  { href: '/learn', label: 'Learn' },
-                  { href: '/about', label: 'About' },
-                  { href: '/terms', label: 'Terms' },
+                  { href: '/learn',   label: 'Learn' },
+                  { href: '/about',   label: 'About' },
+                  { href: '/recover', label: 'My report' },
+                  { href: '/terms',   label: 'Terms' },
                 ].map(({ href, label }) => (
                   <Link key={href} href={href} className="text-xs text-brand-muted hover:text-brand-navy transition-colors">
                     {label}
