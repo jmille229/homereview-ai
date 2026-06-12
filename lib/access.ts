@@ -40,13 +40,15 @@ export function accessWindowSeconds(product: Product): number {
 function getSecret(): string {
   const secret = process.env.ACCESS_TOKEN_SECRET
   if (secret && secret.length >= 16) return secret
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'ACCESS_TOKEN_SECRET must be set (>=16 chars) in production. ' +
-      'Add it to your Vercel environment variables.',
-    )
+  // Fail closed everywhere EXCEPT a local development server. The previous
+  // check only threw when NODE_ENV === 'production', so any other value
+  // (test, staging, or unset) silently fell back to a public, hardcoded
+  // secret — which would make every access cookie forgeable on a reachable
+  // non-prod build. Only NODE_ENV === 'development' (i.e. `next dev`) is exempt.
+  if (process.env.NODE_ENV === 'development') {
+    return 'dev-insecure-access-secret-change-me'
   }
-  return 'dev-insecure-access-secret-change-me'
+  throw new Error('ACCESS_TOKEN_SECRET must be set (>=16 chars).')
 }
 
 // ─── Cookie naming / options ────────────────────────────────────────────────

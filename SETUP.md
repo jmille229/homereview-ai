@@ -94,6 +94,34 @@ session URL alone:
 Set a strong `ACCESS_TOKEN_SECRET` (see `.env.example`) — the app fails closed
 in production if it is missing.
 
+## Abuse & cost protection
+
+The free, pre-payment AI endpoints (`/api/analyze`, `/api/questions`) are the
+main cost-DoS surface. Three independent layers protect them:
+
+1. **Bot gate (Cloudflare Turnstile).** The user solves a Turnstile challenge on
+   the intake page; `/api/gate` verifies it and issues a signed, HttpOnly
+   preview-pass cookie that the AI endpoints require. **Dormant until configured**
+   — set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` (from the
+   Cloudflare dashboard → Turnstile) to enforce it.
+2. **Per-IP rate limits** (unchanged) — first line against a single abuser. IP
+   resolution now **fails closed**: a request with no `x-real-ip` is rejected
+   rather than bucketed into a shared `'unknown'` key.
+3. **Global daily spend ceilings** — a circuit breaker across *all* callers,
+   independent of IP. Tune with `DAILY_PREVIEW_CEILING` / `DAILY_QUESTIONS_CEILING`.
+
+Uploaded files are also validated by **magic bytes server-side**, so malformed
+or mislabeled payloads are rejected before any expensive vision call.
+
+Backstop: set an **Anthropic billing alert** regardless of the above.
+
+## Content-Security-Policy
+
+The CSP is built **per request with a fresh nonce** in `middleware.ts` (not in
+`next.config.js`), which lets us drop `script-src 'unsafe-inline'`. This opts all
+pages into **dynamic rendering** (a static page can't carry a per-request nonce).
+If you add a third-party script, allow its host in `buildCsp()`.
+
 ### Phase 2 — Full accounts (optional)
 
 For per-user dashboards and history, add a real auth provider (e.g. Clerk),

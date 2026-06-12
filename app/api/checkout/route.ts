@@ -4,13 +4,15 @@ import { ZodError } from 'zod'
 import { stripe, PRICES } from '@/lib/stripe'
 import { getSession } from '@/lib/redis'
 import { checkoutLimiter, getClientIp } from '@/lib/ratelimit'
-import { checkoutRequestSchema } from '@/lib/validators'
+import { checkoutRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
+import { parseJsonBody } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await checkoutLimiter.limit(ip)
   if (!success) {
     return NextResponse.json(
@@ -20,16 +22,12 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  const parsed = await parseJsonBody(req, MAX_JSON_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof checkoutRequestSchema.parse>
   try {
-    data = checkoutRequestSchema.parse(body)
+    data = checkoutRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(

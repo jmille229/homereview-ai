@@ -9,29 +9,30 @@ import {
   followupRequestSchema,
   followupResultSchema,
   MAX_FOLLOWUP_QUESTIONS,
+  MAX_JSON_BYTES,
 } from '@/lib/validators'
 import type { FollowupResponse, StoredSession } from '@/lib/types'
 import { getCategoryLabel } from '@/lib/constants'
+import { parseJsonBody } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await reportLimiter.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
   }
 
   // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  const parsed = await parseJsonBody(req, MAX_JSON_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof followupRequestSchema.parse>
   try {
-    data = followupRequestSchema.parse(body)
+    data = followupRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(

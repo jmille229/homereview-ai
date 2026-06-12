@@ -18,6 +18,8 @@ import {
   updateReportRequestSchema,
   MAX_BODY_BYTES,
 } from '@/lib/validators'
+import { parseJsonBody } from '@/lib/http'
+import { filesHaveValidSignatures } from '@/lib/fileValidation'
 import { stripe } from '@/lib/stripe'
 import { getCategoryLabel } from '@/lib/constants'
 import {
@@ -162,6 +164,7 @@ async function generateAndSaveReport(
 export async function POST(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await reportLimiter.limit(ip)
   if (!success) {
     return NextResponse.json(
@@ -170,23 +173,13 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  // ── Body size guard ────────────────────────────────────────────────────────
-  // POST now accepts files (contractor quote documents from sessionStorage).
-  // Enforce the same size limit as PATCH to prevent oversized payloads.
-  const contentLength = req.headers.get('content-length')
-  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 })
-  }
-
-  // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  // ── Parse and validate (real-body size limit; POST carries quote files) ────
+  const parsed = await parseJsonBody(req, MAX_BODY_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof generateReportRequestSchema.parse>
   try {
-    data = generateReportRequestSchema.parse(body)
+    data = generateReportRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(
@@ -195,6 +188,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       )
     }
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  if (data.files && !filesHaveValidSignatures(data.files)) {
+    return NextResponse.json(
+      { error: 'One or more files appear corrupted or are not a supported image/PDF.' },
+      { status: 400 },
+    )
   }
 
   // ── Verify Stripe payment ──────────────────────────────────────────────────
@@ -344,26 +344,19 @@ export async function POST(req: Request): Promise<NextResponse> {
 export async function PATCH(req: Request): Promise<NextResponse> {
   // ── Rate limit ─────────────────────────────────────────────────────────────
   const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
   const { success } = await reportLimiter.limit(ip)
   if (!success) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
   }
 
-  // ── HIGH-01: Reject oversized bodies before parsing ────────────────────────
-  const contentLength = req.headers.get('content-length')
-  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 })
-  }
-
-  // ── Parse and validate ─────────────────────────────────────────────────────
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
-  }
+  // ── Parse and validate (real-body size limit) ──────────────────────────────
+  const parsed = await parseJsonBody(req, MAX_BODY_BYTES)
+  if (!parsed.ok) return parsed.res
 
   let data: ReturnType<typeof updateReportRequestSchema.parse>
   try {
-    data = updateReportRequestSchema.parse(body)
+    data = updateReportRequestSchema.parse(parsed.data)
   } catch (err) {
     if (err instanceof ZodError) {
       return NextResponse.json(
@@ -372,6 +365,13 @@ export async function PATCH(req: Request): Promise<NextResponse> {
       )
     }
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  if (!filesHaveValidSignatures(data.files)) {
+    return NextResponse.json(
+      { error: 'One or more files appear corrupted or are not a supported image/PDF.' },
+      { status: 400 },
+    )
   }
 
   // ── Fetch and validate session ─────────────────────────────────────────────
