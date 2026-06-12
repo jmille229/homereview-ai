@@ -117,10 +117,18 @@ Backstop: set an **Anthropic billing alert** regardless of the above.
 
 ## Content-Security-Policy
 
-The CSP is built **per request with a fresh nonce** in `middleware.ts` (not in
-`next.config.js`), which lets us drop `script-src 'unsafe-inline'`. This opts all
-pages into **dynamic rendering** (a static page can't carry a per-request nonce).
-If you add a third-party script, allow its host in `buildCsp()`.
+CSP is set in `middleware.ts`, with two policies chosen by path:
+
+- **Funnel / app routes** (the `app/(flow)` route group: intake, questions,
+  preview, success, unlock, report) reflect user + AI content, so they get a
+  **strict per-request nonce** policy with no `script-src 'unsafe-inline'`. The
+  `(flow)` layout opts these routes into dynamic rendering so Next can stamp the
+  nonce onto its scripts.
+- **Marketing routes** (home, about, learn, terms) render only trusted content
+  and stay **statically CDN-cached** with the looser `'unsafe-inline'` policy.
+
+If you add a third-party script to a funnel route, allow its host in `nonceCsp()`.
+The route group does not change URLs.
 
 ### Phase 2 — Full accounts (optional)
 

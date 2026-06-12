@@ -56,45 +56,69 @@ function handleApi(req: NextRequest): NextResponse {
 
 // ─── Content-Security-Policy (document routes) ────────────────────────────────
 //
-// Replaces the static, script-src 'unsafe-inline' policy that lived in
-// next.config.js with a per-request nonce. Next.js reads the nonce from the CSP
-// on the inbound request headers and stamps it onto every framework <script>,
-// so we can drop 'unsafe-inline' for scripts entirely — any injected inline
-// script without the nonce is refused. Host-sourced scripts ('self', Turnstile)
-// still load because we don't use 'strict-dynamic'.
+// Two policies, chosen per path:
 //
-// Trade-off: a per-request nonce opts matched pages into dynamic rendering
-// (they can no longer be served as fully static HTML).
+//   • Funnel / app routes (the `(flow)` route group) reflect user + AI content,
+//     so they get a STRICT per-request nonce policy with NO script-src
+//     'unsafe-inline'. Those routes are dynamically rendered (see
+//     app/(flow)/layout.tsx) so Next can stamp the nonce onto its scripts.
+//
+//   • Marketing routes render only static, trusted content and stay statically
+//     CDN-cached, so they keep the looser 'unsafe-inline' policy (a static page
+//     can't carry a per-request nonce, and there's no untrusted input to protect).
+//
+// Host-sourced scripts still load under the strict policy because we don't use
+// 'strict-dynamic'.
 
-function buildCsp(nonce: string): string {
+/** Paths that handle user / AI / payment data — get the strict nonce policy. */
+const STRICT_CSP_PREFIXES = ['/intake', '/questions', '/preview', '/success', '/unlock', '/report']
+
+function isStrictPath(pathname: string): boolean {
+  return STRICT_CSP_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+}
+
+const SHARED_DIRECTIVES = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "style-src 'self' 'unsafe-inline'", // Tailwind/Next inject inline styles; far lower risk than script
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com",
+  "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+]
+
+function nonceCsp(nonce: string): string {
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
     'https://challenges.cloudflare.com', // Turnstile widget script
-    isDev ? "'unsafe-eval'" : '',         // React Refresh / dev tooling only
+    isDev ? "'unsafe-eval'" : '',
   ].filter(Boolean).join(' ')
+  return [`script-src ${scriptSrc}`, ...SHARED_DIRECTIVES].join('; ')
+}
 
-  return [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    `script-src ${scriptSrc}`,
-    "style-src 'self' 'unsafe-inline'", // Tailwind/Next inject inline styles; far lower risk than script
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
-    "connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com",
-    "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
-    "frame-ancestors 'self'",
-    "form-action 'self'",
-  ].join('; ')
+function staticCsp(): string {
+  const scriptSrc = isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'"
+  return [scriptSrc, ...SHARED_DIRECTIVES].join('; ')
 }
 
 function handleDocument(req: NextRequest): NextResponse {
-  const nonce = btoa(crypto.randomUUID())
-  const csp = buildCsp(nonce)
+  // Marketing / static pages: looser policy, no nonce, stays CDN-cacheable.
+  if (!isStrictPath(req.nextUrl.pathname)) {
+    const response = NextResponse.next()
+    response.headers.set('Content-Security-Policy', staticCsp())
+    return response
+  }
 
-  // Propagate the nonce + CSP to the framework via request headers so Next can
-  // apply the nonce to the scripts it renders.
+  // Funnel / app pages: per-request nonce. Propagated via request headers so
+  // Next applies it to the scripts it renders.
+  const nonce = btoa(crypto.randomUUID())
+  const csp = nonceCsp(nonce)
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', csp)

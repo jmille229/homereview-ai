@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
@@ -21,14 +20,6 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Reading a request header opts every route into dynamic rendering, which is
-  // REQUIRED for the per-request CSP nonce set in middleware to be stamped onto
-  // framework scripts. A statically prerendered page cannot carry a per-request
-  // nonce, so its inline scripts would be blocked by the nonce-based policy.
-  // Trade-off: pages are server-rendered per request rather than served as
-  // static HTML (acceptable for this app's scale; revisit if traffic grows).
-  headers()
-
   return (
     <html lang="en">
       <body>
