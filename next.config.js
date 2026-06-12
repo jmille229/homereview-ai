@@ -1,11 +1,9 @@
 /** @type {import('next').NextConfig} */
 
-const isDev = process.env.NODE_ENV === 'development'
-
-const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-  : "script-src 'self' 'unsafe-inline'"
-
+// NOTE: Content-Security-Policy is intentionally NOT set here. It is built
+// per-request with a fresh nonce in middleware.ts so we can drop
+// script-src 'unsafe-inline'. These remaining headers carry no per-request
+// state, so they stay global here.
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   {
@@ -16,18 +14,6 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      scriptSrc,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self'",
-      "connect-src 'self' https://js.stripe.com https://api.stripe.com",
-      "frame-src https://js.stripe.com https://hooks.stripe.com",
-    ].join('; '),
-  },
 ]
 
 const nextConfig = {
