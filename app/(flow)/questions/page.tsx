@@ -141,10 +141,12 @@ export default function QuestionsPage() {
           <div className="text-center">
             <LoadingSpinner size={28} color="#B8722E" className="mx-auto mb-4" />
             <p className="text-sm font-semibold text-brand-navy mb-1">
-              Tailoring your questions…
+              {flow === 'post' ? 'Reviewing your quote…' : 'Reviewing your details…'}
             </p>
             <p className="text-xs text-brand-muted">
-              We generate questions specific to your situation, not a generic form.
+              {flow === 'post'
+                ? 'Reading it closely so we only ask about anything the document doesn’t already cover.'
+                : 'Checking whether a couple of quick questions would sharpen your analysis.'}
             </p>
           </div>
         </div>
