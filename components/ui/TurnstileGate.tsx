@@ -57,6 +57,7 @@ export function TurnstileGate({ onToken }: { onToken: (token: string | null) => 
           'expired-callback': () => onTokenRef.current(null),
           'error-callback': () => onTokenRef.current(null),
         })
+        setFailed(false) // clear any earlier "couldn't load" once the widget mounts
       } catch {
         /* render throws if the element already hosts a widget — safe to ignore */
       }
@@ -74,11 +75,12 @@ export function TurnstileGate({ onToken }: { onToken: (token: string | null) => 
         }
       }, 100)
       // If it never loads (blocked/offline), surface a clear message instead of
-      // leaving the user stuck behind a dead button.
+      // leaving the user stuck behind a dead button. 8s is comfortably longer
+      // than a normal load (~1s) but doesn't leave them waiting indefinitely.
       timeoutId = setTimeout(() => {
         if (pollId) clearInterval(pollId)
         if (!widgetId.current && !cancelled) setFailed(true)
-      }, 15000)
+      }, 8000)
     }
 
     return () => {
