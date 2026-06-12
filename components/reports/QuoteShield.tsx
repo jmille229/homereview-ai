@@ -90,15 +90,15 @@ function SectionCard({ title, badge, updated, children }: {
   return (
     <div className="card mb-2.5">
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="section-label mb-0">{title}</p>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <p className="section-label mb-0 break-words">{title}</p>
           {updated && (
             <span className="text-[11px] font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
               Updated
             </span>
           )}
         </div>
-        {badge}
+        {badge && <div className="flex-shrink-0">{badge}</div>}
       </div>
       {children}
     </div>
@@ -244,13 +244,13 @@ export function QuoteShield({
       <div className="max-w-xl mx-auto px-5 py-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.06em] mb-1">
               Quote Shield
             </p>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h1 className="text-2xl font-bold text-brand-navy">{categoryLabel}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-brand-navy break-words">{categoryLabel}</h1>
               {!updatesExpired ? (
                 <span className="text-[11px] font-medium px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md">
                   Active · {daysRemaining}d remaining
@@ -280,11 +280,11 @@ export function QuoteShield({
             onClick={() => setShowUpdate((v) => !v)}
             className="w-full mb-4 px-4 py-2.5 bg-white border border-dashed border-brand-border-dark rounded-xl
                        text-sm text-brand-muted hover:border-brand-navy transition-colors text-left
-                       flex items-center justify-between print:hidden"
+                       flex items-center justify-between gap-3 print:hidden"
             aria-expanded={showUpdate}
           >
-            <span>+ Add a quote, contract, or invoice to update this report</span>
-            <span className="text-[11px] font-medium text-blue-600 flex-shrink-0 ml-3">
+            <span className="min-w-0">+ Add a quote, contract, or invoice to update this report</span>
+            <span className="text-[11px] font-medium text-blue-600 flex-shrink-0">
               Living report
             </span>
           </button>
@@ -466,13 +466,13 @@ export function QuoteShield({
                 <ul className="space-y-2">
                   {report.upsells.map((u, i) => (
                     <li key={i} className="p-3 bg-red-50 border border-red-100 rounded-xl">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-semibold text-red-800">{u.item}</p>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-xs font-semibold text-red-800 min-w-0 break-words">{u.item}</p>
                         {u.amount > 0 && (
-                          <p className="text-xs font-semibold text-red-800">${u.amount.toLocaleString()}</p>
+                          <p className="text-xs font-semibold text-red-800 flex-shrink-0 tabular-nums">${u.amount.toLocaleString()}</p>
                         )}
                       </div>
-                      <p className="text-xs text-red-700 leading-relaxed">{u.reason}</p>
+                      <p className="text-xs text-red-700 leading-relaxed break-words">{u.reason}</p>
                     </li>
                   ))}
                 </ul>
@@ -591,8 +591,8 @@ export function QuoteShield({
                       <div className="w-px flex-1 bg-brand-border mt-1.5" />
                     )}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3 mb-1 flex-wrap">
                       <p className="text-sm font-semibold text-brand-navy">Report created</p>
                       <p className="text-xs text-brand-muted">{formatDate(report.updates?.[0] ? paidAt : paidAt)}</p>
                     </div>
@@ -615,7 +615,7 @@ export function QuoteShield({
                         <div className="w-px flex-1 bg-brand-border mt-1.5" />
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="text-sm font-semibold text-brand-navy">
                           {UPDATE_TYPE_LABELS[update.updateType]}

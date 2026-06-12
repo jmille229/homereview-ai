@@ -386,13 +386,13 @@ export default function IntakePage() {
             className="input resize-y leading-relaxed text-sm"
             aria-describedby="desc-hint"
           />
-          <div id="desc-hint" className="flex items-start justify-between mt-1.5">
-            <p className="text-[11px] text-brand-muted leading-relaxed">
+          <div id="desc-hint" className="flex items-start justify-between gap-3 mt-1.5">
+            <p className="text-[11px] text-brand-muted leading-relaxed min-w-0">
               {descriptionTouched && description.trim().length > 0 && description.trim().length < 20
                 ? 'Please add a bit more detail for an accurate analysis.'
                 : 'Include duration, symptoms, and any prior repairs — the more context, the better.'}
             </p>
-            <p className="text-[11px] text-brand-muted ml-3 flex-shrink-0">
+            <p className="text-[11px] text-brand-muted flex-shrink-0 tabular-nums">
               {description.length}/4000
             </p>
           </div>

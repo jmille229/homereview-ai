@@ -123,12 +123,12 @@ export function DiagnosticBrief({
       <div className="max-w-xl mx-auto px-5 py-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6 pb-5 border-b border-brand-border">
-          <div>
+        <div className="flex items-start justify-between gap-3 mb-6 pb-5 border-b border-brand-border">
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.06em] mb-1">
               Diagnostic Brief
             </p>
-            <h1 className="text-2xl font-bold text-brand-navy mb-1">{categoryLabel}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-brand-navy mb-1 break-words">{categoryLabel}</h1>
             <div className="flex items-center gap-2">
               <p className="text-sm text-brand-muted">Pre-quote analysis</p>
               {!reportFailed && (
@@ -174,7 +174,7 @@ export function DiagnosticBrief({
 
               {/* Cost range + severity — passed from preview, always present */}
               {(costMin !== undefined && costMax !== undefined) && (
-                <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
                   <div className="card">
                     <p className="section-label">Severity</p>
                     {severity && (
@@ -186,7 +186,7 @@ export function DiagnosticBrief({
                   </div>
                   <div className="card">
                     <p className="section-label">Typical Cost Range</p>
-                    <p className="text-2xl font-bold text-brand-navy mt-1">
+                    <p className="text-2xl font-bold text-brand-navy mt-1 tabular-nums break-words">
                       ${costMin.toLocaleString()}–${costMax.toLocaleString()}
                     </p>
                     <p className="text-[11px] text-brand-muted mt-1">
