@@ -19,14 +19,30 @@ const isDev = process.env.NODE_ENV === 'development'
 
 // ─── CORS (API routes) ────────────────────────────────────────────────────────
 
-function isAllowedOrigin(origin: string | null): boolean {
-  if (!origin) return true                              // server-to-server / same-origin
-  if (isDev) return true
-  return origin === ALLOWED_ORIGIN
+/**
+ * The origin the request was actually served from (scheme + host). Used to
+ * recognise SAME-ORIGIN requests on ANY deployment domain — the production
+ * domain, the *.vercel.app alias, and every per-branch preview URL — without
+ * hardcoding them. The app only ever makes same-origin fetches, so this is
+ * both correct and what unblocks preview deployments (whose Origin is the
+ * preview URL, not NEXT_PUBLIC_BASE_URL).
+ */
+function requestOrigin(req: NextRequest): string | null {
+  const host = req.headers.get('host')
+  if (!host) return null
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https'
+  return `${proto}://${host}`
 }
 
-function buildCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = isAllowedOrigin(origin) ? (origin ?? ALLOWED_ORIGIN) : ''
+function isAllowedOrigin(req: NextRequest, origin: string | null): boolean {
+  if (!origin) return true                              // server-to-server / same-origin GET
+  if (isDev) return true
+  if (origin === ALLOWED_ORIGIN) return true            // configured production origin
+  return origin === requestOrigin(req)                  // same-origin (covers preview deploys)
+}
+
+function buildCorsHeaders(req: NextRequest, origin: string | null): Record<string, string> {
+  const allowedOrigin = isAllowedOrigin(req, origin) ? (origin ?? ALLOWED_ORIGIN) : ''
   return {
     'Access-Control-Allow-Origin':  allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
@@ -39,16 +55,16 @@ function handleApi(req: NextRequest): NextResponse {
   const origin = req.headers.get('origin')
 
   if (req.method === 'OPTIONS') {
-    return new NextResponse(null, { status: 204, headers: buildCorsHeaders(origin) })
+    return new NextResponse(null, { status: 204, headers: buildCorsHeaders(req, origin) })
   }
 
   // Block disallowed origins (except Stripe webhooks — no Origin header).
-  if (!req.nextUrl.pathname.startsWith('/api/webhooks/') && !isAllowedOrigin(origin)) {
+  if (!req.nextUrl.pathname.startsWith('/api/webhooks/') && !isAllowedOrigin(req, origin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const response = NextResponse.next()
-  for (const [key, value] of Object.entries(buildCorsHeaders(origin))) {
+  for (const [key, value] of Object.entries(buildCorsHeaders(req, origin))) {
     response.headers.set(key, value)
   }
   return response
