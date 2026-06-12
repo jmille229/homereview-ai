@@ -65,8 +65,14 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const categoryLabel = getCategoryLabel(data.category)
   const sanitizedDesc = sanitizeInput(data.description)
+  const files = data.files ?? []
 
-  // ── Generate questions — Haiku is fast and accurate for this task ──────────
+  // ── Generate questions ─────────────────────────────────────────────────────
+  // The post-quote prompt instructs the model to READ the uploaded quote and not
+  // ask anything the document already answers — so the document MUST be passed
+  // here. When a document is present we use Sonnet (reliable document reading,
+  // same as the preview step); otherwise Haiku is fast and sufficient for the
+  // text-only pre-quote flow.
   // On failure, return empty questions. The caller skips to the analyze step
   // rather than blocking the user. Questions are an enhancement, not a gate.
   let result: ReturnType<typeof questionsResultSchema.parse>
@@ -74,8 +80,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     result = await callClaude({
       system:    buildQuestionsSystem(data.flow, categoryLabel),
       userText:  `Issue description: ${sanitizedDesc}`,
+      files,
       schema:    questionsResultSchema,
-      model:     'haiku',
+      model:     files.length > 0 ? 'sonnet' : 'haiku',
       maxTokens: 400,
     })
   } catch (err) {

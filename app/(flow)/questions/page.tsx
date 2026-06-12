@@ -87,10 +87,13 @@ export default function QuestionsPage() {
     const fetchQuestions = async () => {
       setLoadingQ(true)
       try {
+        // Send the uploaded quote on the post-quote flow so the model can read
+        // it and avoid asking about details the document already answers.
+        const files = flow === 'post' ? getPendingFiles() : []
         const res = await fetch('/api/questions', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ flow, category, description }),
+          body:    JSON.stringify({ flow, category, description, files }),
         })
         const json: QuestionsResponse | { error: string; code?: string } = await res.json()
         if (cancelled) return
