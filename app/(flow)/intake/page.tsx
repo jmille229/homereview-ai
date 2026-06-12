@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button'
 import { TurnstileGate, turnstileRequired } from '@/components/ui/TurnstileGate'
 import {
   CATEGORY_ICONS,
+  AlertTriangleIcon,
   ClipboardIcon,
   PaperclipIcon,
   PlusIcon,
@@ -152,6 +153,8 @@ export default function IntakePage() {
   const [pickerExpanded, setPickerExpanded]   = useState(false)
   // Cloudflare Turnstile token (only when the bot gate is configured).
   const [gateToken, setGateToken]             = useState<string | null>(null)
+  // Quote Shield (post flow) with no uploaded quote — show a steering notice.
+  const [showQuoteWarning, setShowQuoteWarning] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const gateRequired = turnstileRequired()
@@ -189,6 +192,7 @@ export default function IntakePage() {
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
     }
     setFiles(prev => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
+    if (validated.length > 0) setShowQuoteWarning(false)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -196,15 +200,34 @@ export default function IntakePage() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async () => {
+  // Switch this session to the pre-quote product (Diagnostic Brief) and reset
+  // the user to the top so they re-orient to the changed form.
+  const switchToBrief = () => {
+    setShowQuoteWarning(false)
+    setFlow('pre')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSubmit = async (opts?: { bypassQuote?: boolean }) => {
     if (!flow) { setSubmitError('Please select where you are in the process.'); return }
     if (!category) { setSubmitError('Please select the area of your home.'); return }
     if (description.trim().length < 20) { setSubmitError('Please describe the situation in a bit more detail.'); return }
     // Catch partial zips here — otherwise the server rejects them at the END of
     // the flow (after the user has answered questions), which is far worse UX.
     if (zip.length > 0 && zip.length < 5) { setSubmitError('Please enter all 5 digits of your zip code, or leave it blank.'); return }
+
+    // Quote Shield is built around a real quote — steer no-quote users before
+    // anything else. They can upload, switch to Diagnostic Brief, or knowingly
+    // continue (Quote Shield also supports a text-only / verbal quote).
+    if (flow === 'post' && files.length === 0 && !opts?.bypassQuote) {
+      setSubmitError(null)
+      setShowQuoteWarning(true)
+      return
+    }
+
     if (gateRequired && !gateToken) { setSubmitError('Please complete the verification below to continue.'); return }
 
+    setShowQuoteWarning(false)
     setSubmitError(null)
     setSubmitting(true)
 
@@ -461,13 +484,53 @@ export default function IntakePage() {
         {/* ── Error + Submit ────────────────────────────────────────────── */}
         {submitError && <ErrorBanner message={submitError} />}
 
+        {/* Quote Shield: no-quote steering notice */}
+        {showQuoteWarning && (
+          <div role="alert" className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex gap-2.5">
+              <AlertTriangleIcon size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900 mb-1">You haven&apos;t added a quote</p>
+                <p className="text-xs text-amber-800 leading-relaxed mb-3.5">
+                  Quote Shield reviews a real contractor quote line by line — pricing, scope, and red
+                  flags. Without one, there&apos;s little for it to evaluate. Don&apos;t have a quote yet?
+                  Diagnostic Brief explains your issue and what a fair price looks like.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowQuoteWarning(false); fileRef.current?.click() }}
+                    className="px-3.5 py-2 bg-brand-navy text-white text-xs font-semibold rounded-lg hover:bg-opacity-90 transition-colors"
+                  >
+                    Upload my quote
+                  </button>
+                  <button
+                    type="button"
+                    onClick={switchToBrief}
+                    className="px-3.5 py-2 bg-white border border-brand-border text-brand-navy text-xs font-semibold rounded-lg hover:border-brand-border-dark transition-colors"
+                  >
+                    Switch to Diagnostic Brief
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit({ bypassQuote: true })}
+                    className="text-xs text-amber-800 underline underline-offset-2 hover:text-amber-900 ml-0.5"
+                  >
+                    Continue without a quote
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bot gate — renders only when configured (NEXT_PUBLIC_TURNSTILE_SITE_KEY) */}
         <TurnstileGate onToken={setGateToken} />
 
         <Button
           size="lg"
           full
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={!canSubmit}
           loading={submitting}
           loadingLabel="Continuing…"
