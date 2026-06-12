@@ -3,7 +3,7 @@ import type Stripe from 'stripe'
 import type { StoredSession } from '@/lib/types'
 
 import { stripe } from '@/lib/stripe'
-import { updateSession, markStripeEventProcessed } from '@/lib/redis'
+import { updateSession, markStripeEventProcessed, indexSessionForRecovery } from '@/lib/redis'
 
 export const runtime = 'nodejs'
 
@@ -96,6 +96,9 @@ export async function POST(req: Request): Promise<NextResponse> {
         payerEmail,
         product: product as StoredSession['product'],
       })
+      if (payerEmail) {
+        try { await indexSessionForRecovery(payerEmail, reportSessionId) } catch { /* non-fatal */ }
+      }
     } catch (err) {
       console.error('[webhook] Failed to update session:', {
         message: err instanceof Error ? err.message : 'Unknown error',

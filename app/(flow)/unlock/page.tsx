@@ -89,9 +89,11 @@ function UnlockContent() {
             </button>
 
             <p className="text-[11px] text-brand-muted text-center mt-3 leading-relaxed">
-              Trouble unlocking? Email{' '}
-              <a className="underline" href="mailto:support@homereviewai.com">support@homereviewai.com</a>
-              {' '}with your purchase details.
+              Don&apos;t have your report link?{' '}
+              <a className="underline font-semibold" href="/recover">Find it by email</a>.
+              <br />
+              Still stuck? Email{' '}
+              <a className="underline" href="mailto:support@homereviewai.com">support@homereviewai.com</a>.
             </p>
           </form>
         )}

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
-import { getSession } from '@/lib/redis'
+import { getSession, indexSessionForRecovery } from '@/lib/redis'
 import { hasValidAccess } from '@/lib/access'
 import { QuoteShield } from '@/components/reports/QuoteShield'
 import type { QuoteShieldReport } from '@/lib/types'
@@ -25,6 +25,12 @@ export default async function ShieldReportPage({ params }: Props) {
   // Payment-bound access: the session URL alone is not sufficient. Without a
   // valid access cookie, send the user to reclaim it with their checkout email.
   if (!hasValidAccess(params.sessionId)) redirect(`/unlock?session=${params.sessionId}`)
+
+  // Backfill the recovery index so this report is findable by email later —
+  // covers reports purchased before the index existed. Idempotent, best-effort.
+  if (session.payerEmail) {
+    try { await indexSessionForRecovery(session.payerEmail, params.sessionId) } catch { /* non-fatal */ }
+  }
 
   // Allow access even when report generation failed — user has paid and
   // deserves access to chat support while we resolve the issue.

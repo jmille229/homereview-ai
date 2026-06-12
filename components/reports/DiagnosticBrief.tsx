@@ -298,6 +298,13 @@ export function DiagnosticBrief({
           </div>
         </div>
 
+        {/* How to return later */}
+        <p className="text-[11px] text-brand-muted text-center mt-6 print:hidden">
+          Closed this tab? Reopen your report anytime — go to{' '}
+          <a href="/recover" className="underline font-semibold hover:text-brand-navy">My report</a>
+          {' '}and enter your checkout email.
+        </p>
+
         {/* Full legal disclaimer — always shown on report pages */}
         <DisclaimerFooter />
       </div>
