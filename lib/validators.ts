@@ -137,7 +137,7 @@ export const recoverRequestSchema = z.object({
 
 export const checkoutRequestSchema = z.object({
   sessionId: z.string().uuid(),
-  product:   z.enum(['brief', 'shield', 'bundle'] as [Product, Product, Product]),
+  product:   z.enum(['brief', 'shield'] as [Product, Product]),
 })
 
 // ─── AI output schemas ────────────────────────────────────────────────────────

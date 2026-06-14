@@ -28,9 +28,4 @@ export const PRICES: Record<Product, { amount: number; name: string; description
     description:
       'Post-quote analysis with line-by-line review, upsell detection, negotiation guide, and 60-day living report.',
   },
-  bundle: {
-    amount: 4200,
-    name: 'HomeReview Bundle',
-    description: 'Diagnostic Brief + Quote Shield together. Save $6.',
-  },
 }
