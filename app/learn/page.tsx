@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { NavBar } from '@/components/ui/NavBar'
+import { isArticleLive } from '@/lib/articles'
 
 export const metadata = {
   title: 'Learn — HomeReview AI',
@@ -95,27 +96,42 @@ const ARTICLES: Article[] = [
 // ─── Article card ─────────────────────────────────────────────────────────────
 
 /**
- * Not a link yet — the /learn/[slug] article pages don't exist. Rendering
- * these as links guaranteed 404s on every card, which is worse than honestly
- * labeling them "coming soon." Convert back to <Link> as articles ship.
+ * Live articles (content in lib/articles.ts) link to /learn/[slug]; the rest
+ * are honest "Coming soon" cards until their content is written.
  */
 function ArticleCard({ article }: { article: Article }) {
-  return (
-    <article className="card">
-      <div className="flex items-center justify-between mb-3">
+  const live = isArticleLive(article.slug)
+
+  const inner = (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-3">
         <span className="text-[11px] font-semibold text-brand-amber-deep">{article.category}</span>
-        <span className="text-[11px] font-medium px-2 py-0.5 bg-brand-bg text-brand-muted rounded">
-          Coming soon
-        </span>
+        {live ? (
+          <span className="text-[11px] text-brand-muted">{article.readTime} read</span>
+        ) : (
+          <span className="text-[11px] font-medium px-2 py-0.5 bg-brand-bg text-brand-muted rounded flex-shrink-0">
+            Coming soon
+          </span>
+        )}
       </div>
-      <h2 className="text-sm font-semibold text-brand-navy leading-snug mb-2">
+      <h2 className={`text-sm font-semibold text-brand-navy leading-snug mb-2 ${live ? 'group-hover:underline underline-offset-2' : ''}`}>
         {article.title}
       </h2>
       <p className="text-xs text-brand-muted leading-relaxed mb-4">
         {article.summary}
       </p>
-      <p className="text-[11px] text-brand-muted">{article.readTime} read</p>
-    </article>
+      {live
+        ? <p className="text-[11px] font-semibold text-brand-amber-deep">Read guide →</p>
+        : <p className="text-[11px] text-brand-muted">{article.readTime} read</p>}
+    </>
+  )
+
+  return live ? (
+    <Link href={`/learn/${article.slug}`} className="card block group hover:border-brand-border-dark transition-colors">
+      {inner}
+    </Link>
+  ) : (
+    <article className="card">{inner}</article>
   )
 }
 
