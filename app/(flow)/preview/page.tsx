@@ -9,6 +9,7 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
 import { ShieldIcon } from '@/components/ui/icons'
+import { track } from '@vercel/analytics'
 import type { FollowupResponse, Product } from '@/lib/types'
 import { MAX_FOLLOWUP_QUESTIONS } from '@/lib/validators'
 
@@ -212,6 +213,7 @@ export default function PreviewPage() {
   const handlePurchase = async (product: Product) => {
     setPurchaseError(null)
     setPurchasing(true)
+    track('checkout_started', { product })
     try {
       const res  = await fetch('/api/checkout', {
         method:  'POST',
