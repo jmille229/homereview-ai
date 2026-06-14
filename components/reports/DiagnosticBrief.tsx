@@ -22,6 +22,10 @@ interface Props {
   costMax?:            number
   /** From preview — surfaced alongside the cost range for quick reference */
   severity?:           string
+  /** Read-only shared view: hides chat and recovery note. */
+  readOnly?:           boolean
+  /** Owner view only — shows a Share button that copies this link. */
+  shareUrl?:           string
 }
 
 const DIY_CONFIG: Record<string, { bg: string; text: string }> = {
@@ -114,8 +118,11 @@ export function DiagnosticBrief({
   costMin,
   costMax,
   severity,
+  readOnly = false,
+  shareUrl,
 }: Props) {
   const handlePrint = () => window.print()
+  const [copied, setCopied] = useState(false)
 
   return (
     <main className="min-h-screen bg-brand-bg print:bg-white">
@@ -129,9 +136,13 @@ export function DiagnosticBrief({
               Diagnostic Brief
             </p>
             <h1 className="text-xl sm:text-2xl font-bold text-brand-navy mb-1 break-words">{categoryLabel}</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm text-brand-muted">Pre-quote analysis</p>
-              {!reportFailed && (
+              {readOnly ? (
+                <span className="text-[11px] font-semibold px-2 py-0.5 bg-brand-bg text-brand-muted rounded-md">
+                  Shared · read-only
+                </span>
+              ) : !reportFailed && (
                 <span className="text-[11px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md">
                   ✓ Complete
                 </span>
@@ -139,13 +150,23 @@ export function DiagnosticBrief({
             </div>
           </div>
           {!reportFailed && (
-            <button
-              onClick={handlePrint}
-              className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2 print:hidden transition-colors flex-shrink-0"
-              aria-label="Save as PDF"
-            >
-              Save PDF
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0 print:hidden">
+              {shareUrl && !readOnly && (
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                  className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2 transition-colors"
+                >
+                  {copied ? 'Copied!' : 'Share'}
+                </button>
+              )}
+              <button
+                onClick={handlePrint}
+                className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2 transition-colors"
+                aria-label="Save as PDF"
+              >
+                Save PDF
+              </button>
+            </div>
           )}
         </div>
 
@@ -280,8 +301,9 @@ export function DiagnosticBrief({
           )
         })()}
 
-        {/* Chat — activated state for paid users. Hidden in print: the PDF is
-            the report artifact, an empty chat box adds nothing on paper. */}
+        {/* Chat — activated state for paid users. Hidden in print and on shared
+            read-only views. */}
+        {!readOnly && (
         <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden print:hidden">
           <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
@@ -297,13 +319,23 @@ export function DiagnosticBrief({
             />
           </div>
         </div>
+        )}
 
         {/* How to return later */}
-        <p className="text-[11px] text-brand-muted text-center mt-6 print:hidden">
-          Closed this tab? Reopen your report anytime — go to{' '}
-          <a href="/recover" className="underline font-semibold hover:text-brand-navy">My report</a>
-          {' '}and enter your checkout email.
-        </p>
+        {!readOnly && (
+          <p className="text-[11px] text-brand-muted text-center mt-6 print:hidden">
+            Closed this tab? Reopen your report anytime — go to{' '}
+            <a href="/recover" className="underline font-semibold hover:text-brand-navy">My report</a>
+            {' '}and enter your checkout email.
+          </p>
+        )}
+
+        {/* Shared read-only footer CTA */}
+        {readOnly && (
+          <p className="text-[11px] text-brand-muted text-center mt-6">
+            Shared via HomeReview AI · <a href="/" className="underline font-semibold hover:text-brand-navy">Get your own report</a>
+          </p>
+        )}
 
         {/* Full legal disclaimer — always shown on report pages */}
         <DisclaimerFooter />

@@ -28,6 +28,10 @@ interface Props {
   initialChatMessages: ChatMessage[]
   reportFailed?: boolean
   reportError?: string
+  /** Read-only shared view: hides chat, uploads, tabs, and recovery. */
+  readOnly?: boolean
+  /** When present (owner view), shows a Share button that copies this link. */
+  shareUrl?: string
 }
 
 // ─── Sub-types ────────────────────────────────────────────────────────────────
@@ -118,9 +122,12 @@ export function QuoteShield({
   initialChatMessages,
   reportFailed,
   reportError,
+  readOnly = false,
+  shareUrl,
 }: Props) {
   const [report, setReport] = useState<QuoteShieldReport | undefined>(initialReport)
   const [tab, setTab] = useState<Tab>('report')
+  const [copied, setCopied] = useState(false)
   const [showUpdate, setShowUpdate] = useState(false)
   const [updateType, setUpdateType] = useState<UpdateType>('new_quote')
   const [files, setFiles] = useState<LocalFile[]>([])
@@ -251,7 +258,11 @@ export function QuoteShield({
             </p>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-bold text-brand-navy break-words">{categoryLabel}</h1>
-              {!updatesExpired ? (
+              {readOnly ? (
+                <span className="text-[11px] font-medium px-2.5 py-1 bg-brand-bg text-brand-muted rounded-md">
+                  Shared · read-only
+                </span>
+              ) : !updatesExpired ? (
                 <span className="text-[11px] font-medium px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md">
                   Active · {daysRemaining}d remaining
                 </span>
@@ -265,17 +276,27 @@ export function QuoteShield({
               Post-quote analysis · Purchased {formatDate(paidAt)}
             </p>
           </div>
-          <button
-            onClick={handlePrint}
-            className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2 print:hidden flex-shrink-0"
-            aria-label="Save as PDF"
-          >
-            Save PDF
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0 print:hidden">
+            {shareUrl && !readOnly && (
+              <button
+                onClick={() => { navigator.clipboard?.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2"
+              >
+                {copied ? 'Copied!' : 'Share'}
+              </button>
+            )}
+            <button
+              onClick={handlePrint}
+              className="text-xs text-brand-muted hover:text-brand-navy border border-brand-border rounded-lg px-3 py-2"
+              aria-label="Save as PDF"
+            >
+              Save PDF
+            </button>
+          </div>
         </div>
 
         {/* Update button — only when report exists and not failed */}
-        {!updatesExpired && !reportFailed && report && (
+        {!updatesExpired && !reportFailed && report && !readOnly && (
           <button
             onClick={() => setShowUpdate((v) => !v)}
             className="w-full mb-4 px-4 py-2.5 bg-white border border-dashed border-brand-border-dark rounded-xl
@@ -291,7 +312,7 @@ export function QuoteShield({
         )}
 
         {/* Update panel */}
-        {showUpdate && !updatesExpired && !reportFailed && report && (
+        {showUpdate && !updatesExpired && !reportFailed && report && !readOnly && (
           <div className="card bg-blue-50 border-blue-200 mb-4 print:hidden">
             <p className="text-sm font-semibold text-brand-navy mb-1">Update your report</p>
             <p className="text-xs text-brand-muted mb-4">
@@ -419,7 +440,7 @@ export function QuoteShield({
         )}
 
         {/* Tabs — only shown when report is available */}
-        {!reportFailed && report && (
+        {!reportFailed && report && !readOnly && (
           <div className="flex mb-4 print:hidden" role="tablist">
             {tabs.map(({ id, label }, i) => (
               <button
@@ -667,29 +688,40 @@ export function QuoteShield({
           </div>
         )}
         {/* Chat — activated state signals ongoing support, not an appended feature.
-            Hidden in print: the PDF is the report artifact. */}
-        <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden print:hidden">
-          <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
-            <p className="text-sm font-semibold text-white">Your advisor is ready</p>
-            <span className="ml-auto text-xs text-white opacity-60">60 days included</span>
+            Hidden in print and on shared read-only views. */}
+        {!readOnly && (
+          <div className="mt-5 border border-brand-navy rounded-xl overflow-hidden print:hidden">
+            <div className="bg-brand-navy px-5 py-3 flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-brand-amber flex-shrink-0" aria-hidden="true" />
+              <p className="text-sm font-semibold text-white">Your advisor is ready</p>
+              <span className="ml-auto text-xs text-white opacity-60">60 days included</span>
+            </div>
+            <div className="bg-white p-5">
+              <ChatInterface
+                sessionId={sessionId}
+                product={product}
+                paidAt={paidAt}
+                initialMessages={initialChatMessages}
+              />
+            </div>
           </div>
-          <div className="bg-white p-5">
-            <ChatInterface
-              sessionId={sessionId}
-              product={product}
-              paidAt={paidAt}
-              initialMessages={initialChatMessages}
-            />
-          </div>
-        </div>
+        )}
 
         {/* How to return later */}
-        <p className="text-[11px] text-brand-muted text-center mt-6 print:hidden">
-          Closed this tab? Reopen your report (and keep uploading quotes) anytime — go to{' '}
-          <a href="/recover" className="underline font-semibold hover:text-brand-navy">My report</a>
-          {' '}and enter your checkout email.
-        </p>
+        {!readOnly && (
+          <p className="text-[11px] text-brand-muted text-center mt-6 print:hidden">
+            Closed this tab? Reopen your report (and keep uploading quotes) anytime — go to{' '}
+            <a href="/recover" className="underline font-semibold hover:text-brand-navy">My report</a>
+            {' '}and enter your checkout email.
+          </p>
+        )}
+
+        {/* Shared read-only footer CTA */}
+        {readOnly && (
+          <p className="text-[11px] text-brand-muted text-center mt-6">
+            Shared via HomeReview AI · <a href="/" className="underline font-semibold hover:text-brand-navy">Get your own report</a>
+          </p>
+        )}
 
         {/* Full legal disclaimer — always shown on report pages */}
         <DisclaimerFooter />

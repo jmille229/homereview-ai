@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
 import { getSession, indexSessionForRecovery } from '@/lib/redis'
-import { hasValidAccess } from '@/lib/access'
+import { hasValidAccess, createShareToken } from '@/lib/access'
 import { QuoteShield } from '@/components/reports/QuoteShield'
 import type { QuoteShieldReport } from '@/lib/types'
 
@@ -43,6 +43,11 @@ export default async function ShieldReportPage({ params }: Props) {
     ? 0
     : Math.ceil((new Date(paidAt).getTime() + sixtyDaysMs - Date.now()) / (1000 * 60 * 60 * 24))
 
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? ''
+  const shareUrl = session.report
+    ? `${base}/share/shield/${params.sessionId}?t=${createShareToken(params.sessionId)}`
+    : undefined
+
   return (
     <QuoteShield
       report={session.report as QuoteShieldReport | undefined}
@@ -56,6 +61,7 @@ export default async function ShieldReportPage({ params }: Props) {
       initialChatMessages={session.chatMessages ?? []}
       reportFailed={reportFailed}
       reportError={session.reportError}
+      shareUrl={shareUrl}
     />
   )
 }

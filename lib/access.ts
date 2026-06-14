@@ -105,6 +105,40 @@ export function verifyAccessToken(sessionId: string, token: string | undefined |
   }
 }
 
+// ─── Read-only share tokens ─────────────────────────────────────────────────
+//
+// A separate, read-only capability so a buyer can share their report (e.g. with
+// a spouse or the contractor) without granting chat/upload access. Distinct
+// message prefix so a share token can never be used as an access token.
+
+const SHARE_TTL_SECONDS = 60 * 60 * 24 * 180 // 180 days
+
+function signShare(sessionId: string, exp: number): string {
+  return createHmac('sha256', getSecret()).update(`share.${sessionId}.${exp}`).digest('hex')
+}
+
+export function createShareToken(sessionId: string): string {
+  const exp = Math.floor(Date.now() / 1000) + SHARE_TTL_SECONDS
+  return `${TOKEN_VERSION}.${exp}.${signShare(sessionId, exp)}`
+}
+
+export function verifyShareToken(sessionId: string, token: string | undefined | null): boolean {
+  if (!token) return false
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+  const [version, expRaw, sig] = parts
+  if (version !== TOKEN_VERSION) return false
+  const exp = Number(expRaw)
+  if (!Number.isInteger(exp) || exp <= Math.floor(Date.now() / 1000)) return false
+  const expected = signShare(sessionId, exp)
+  if (sig.length !== expected.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
 // ─── Request-scoped helper (server components + route handlers) ───────────────
 
 /**
