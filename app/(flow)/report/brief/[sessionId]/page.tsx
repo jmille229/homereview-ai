@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
 import { getSession, indexSessionForRecovery } from '@/lib/redis'
-import { hasValidAccess } from '@/lib/access'
+import { hasValidAccess, createShareToken } from '@/lib/access'
 import { DiagnosticBrief } from '@/components/reports/DiagnosticBrief'
 import type { DiagnosticBriefReport } from '@/lib/types'
 
@@ -36,6 +36,11 @@ export default async function BriefReportPage({ params }: Props) {
   // deserves access to chat support while we resolve the issue.
   const reportFailed = session.reportStatus === 'failed'
 
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? ''
+  const shareUrl = session.report
+    ? `${base}/share/brief/${params.sessionId}?t=${createShareToken(params.sessionId)}`
+    : undefined
+
   return (
     <DiagnosticBrief
       report={session.report as DiagnosticBriefReport | undefined}
@@ -49,6 +54,7 @@ export default async function BriefReportPage({ params }: Props) {
       costMin={session.preview?.costMin}
       costMax={session.preview?.costMax}
       severity={session.preview?.severity}
+      shareUrl={shareUrl}
     />
   )
 }
