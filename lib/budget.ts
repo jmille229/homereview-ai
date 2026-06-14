@@ -1,4 +1,5 @@
 import { redis } from './redis'
+import { sendOpsAlert } from './email'
 
 /**
  * Global daily spend ceiling — a circuit breaker independent of per-IP limits.
@@ -41,13 +42,22 @@ export async function consumeDailyBudget(name: BudgetName): Promise<boolean> {
   const cfg = BUDGETS[name]
   const day = new Date().toISOString().slice(0, 10) // UTC YYYY-MM-DD
   const key = `budget:${cfg.bucket}:${day}`
+  const cap = capFor(cfg)
   try {
     const count = await redis.incr(key)
     if (count === 1) {
       // First write today — expire after 48h so old buckets self-clean.
       await redis.expire(key, 60 * 60 * 48)
     }
-    return count <= capFor(cfg)
+    // Alert once, on the request that first crosses the ceiling.
+    if (count === cap + 1) {
+      void sendOpsAlert(
+        `Daily ${cfg.bucket} ceiling reached`,
+        `The '${cfg.bucket}' daily ceiling of ${cap} was reached on ${day}. ` +
+        `Further ${cfg.bucket} requests are being shed until tomorrow (UTC).`,
+      )
+    }
+    return count <= cap
   } catch {
     return true
   }
