@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
 import { Button } from '@/components/ui/Button'
-import { ScaleIcon, ShieldIcon, DocumentIcon, ChatIcon } from '@/components/ui/icons'
+import { ScaleIcon, ShieldIcon, DocumentIcon, ChatIcon, PaperclipIcon, SearchIcon } from '@/components/ui/icons'
+import { QuoteScanVisual } from '@/components/ui/QuoteScanVisual'
 import type { Flow } from '@/lib/types'
 
 const SAMPLE_PREVIEW = {
@@ -60,18 +61,21 @@ const TRUST_STRIP = [
 const HOW_IT_WORKS = [
   {
     n:     '01',
-    title: 'Tell us what\'s going on',
-    body:  'Describe the issue, upload photos, and — for Quote Shield — attach the contractor\'s estimate. Takes about two minutes.',
+    Icon:  PaperclipIcon,
+    title: 'Upload your quote',
+    body:  'Attach the contractor\'s estimate (PDF or photo) and add a line about the job. Takes about two minutes.',
   },
   {
     n:     '02',
-    title: 'Get a free preview instantly',
-    body:  'We surface the likely cause, a conservative severity rating, and a regional cost bracket. No payment required to see this.',
+    Icon:  SearchIcon,
+    title: 'We scan it line by line',
+    body:  'Our independent AI checks pricing against regional norms, spots padding and missing work, and benchmarks a fair range.',
   },
   {
     n:     '03',
-    title: 'Unlock the right report',
-    body:  'Diagnostic Brief for pre-quote clarity. Quote Shield for full quote analysis with 60 days of free updates as the project evolves.',
+    Icon:  ShieldIcon,
+    title: 'Get your free preview, then the full report',
+    body:  'See the headline finding free. Unlock the full breakdown, negotiation language, and 60 days of follow-up chat and updates.',
   },
 ]
 
@@ -85,6 +89,8 @@ export default function HomePage() {
     router.push('/intake')
   }
 
+  const shield = PRODUCTS.find(p => p.flow === 'post')!
+
   return (
     <div className="min-h-screen bg-brand-bg">
 
@@ -94,35 +100,48 @@ export default function HomePage() {
       <main>
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <section className="max-w-3xl mx-auto px-5 pt-16 pb-12 text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-brand-border rounded-full mb-8">
-            <ShieldIcon size={13} className="text-brand-amber-deep" />
-            <span className="text-[11px] font-medium text-brand-muted">
-              Independent — no contractor referrals, no kickbacks
-            </span>
-          </div>
+        <section className="max-w-5xl mx-auto px-5 pt-14 pb-14">
+          <div className="grid md:grid-cols-2 gap-10 md:gap-8 items-center">
+            {/* Copy */}
+            <div className="text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-brand-border rounded-full mb-6">
+                <ShieldIcon size={13} className="text-brand-amber-deep" />
+                <span className="text-[11px] font-medium text-brand-muted">
+                  Independent — no contractor referrals, no kickbacks
+                </span>
+              </div>
 
-          <h1 className="text-4xl sm:text-5xl font-bold text-brand-navy leading-[1.1] tracking-tight mb-5">
-            Know what you&apos;re{' '}
-            <span className="text-brand-amber italic">actually</span>{' '}
-            paying for.
-          </h1>
-          <p className="text-lg text-brand-muted leading-relaxed mb-10 max-w-xl mx-auto">
-            HomeReview AI is the independent advisor homeowners turn to before —
-            and after — they call a contractor. Two reports, built for two very different moments.
-          </p>
+              <h1 className="text-4xl sm:text-5xl font-bold text-brand-navy leading-[1.08] tracking-tight mb-5">
+                Is your contractor&apos;s quote{' '}
+                <span className="text-brand-amber-deep italic">fair?</span>
+              </h1>
+              <p className="text-lg text-brand-muted leading-relaxed mb-8">
+                Upload the quote and our independent AI reviews it line by line —
+                flagging overpriced items, padding, and missing work, with the exact
+                questions to ask before you sign.
+              </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-5">
-            <Button size="lg" onClick={() => handleStart('pre')}>
-              I have a problem — get a Diagnostic Brief →
-            </Button>
-            <Button size="lg" variant="secondary" onClick={() => handleStart('post')}>
-              I have a quote — get Quote Shield
-            </Button>
+              <div className="flex flex-col sm:flex-row gap-3 md:justify-start justify-center mb-3">
+                <Button size="lg" onClick={() => handleStart('post')}>
+                  Review my quote — free →
+                </Button>
+              </div>
+              <p className="text-xs text-brand-muted mb-2">
+                Free preview in under 2 minutes · No credit card required
+              </p>
+              <button
+                onClick={() => handleStart('pre')}
+                className="text-xs font-semibold text-brand-muted hover:text-brand-navy underline underline-offset-2"
+              >
+                Don&apos;t have a quote yet? Diagnose a home problem →
+              </button>
+            </div>
+
+            {/* Visual */}
+            <div className="px-2 sm:px-6 md:px-0 pt-2 md:pt-0">
+              <QuoteScanVisual />
+            </div>
           </div>
-          <p className="text-xs text-brand-muted">
-            Free preview in under 2 minutes · No credit card required
-          </p>
         </section>
 
         {/* ── Trust strip ───────────────────────────────────────────────────── */}
@@ -137,45 +156,52 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Products ──────────────────────────────────────────────────────── */}
-        <section id="products" className="max-w-4xl mx-auto px-5 py-16">
+        {/* ── Product (one hero product: Quote Shield) ─────────────────────────── */}
+        <section id="products" className="max-w-3xl mx-auto px-5 py-16">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-brand-navy mb-3">Two reports, two moments.</h2>
-            <p className="text-base text-brand-muted">Pick the one that matches where you are right now.</p>
+            <h2 className="text-3xl font-bold text-brand-navy mb-3">What your report covers</h2>
+            <p className="text-base text-brand-muted">Everything you need to walk into the conversation informed.</p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {PRODUCTS.map((p) => (
-              <div key={p.flow} className="bg-white border border-brand-border rounded-2xl p-6 flex flex-col">
-                <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-4 self-start ${p.badgeStyle}`}>
-                  {p.badge}
-                </span>
-                <p className="text-lg font-bold text-brand-navy leading-snug mb-1">{p.label}</p>
-                <p className="text-sm text-brand-muted mb-5">{p.sub}</p>
-                <ul className="space-y-2.5 mb-6 flex-1">
-                  {p.features.map(f => (
-                    <li key={f} className="flex items-start gap-2.5">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5" aria-hidden="true">
-                        <circle cx="7" cy="7" r="6.5" fill="#F0FDF4" stroke="#86EFAC" />
-                        <path d="M4 7l2 2 4-4" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span className="text-xs text-brand-muted leading-relaxed">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => handleStart(p.flow)}
-                  className="text-sm font-semibold text-brand-amber-deep hover:text-brand-navy transition-colors text-left"
-                >
-                  Start free preview →
-                </button>
-              </div>
-            ))}
+
+          {/* Primary: Quote Shield */}
+          <div className="bg-white border-2 border-brand-navy rounded-2xl p-6 sm:p-8">
+            <span className="inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-5 bg-emerald-50 text-emerald-700">
+              Quote Shield
+            </span>
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5 mb-7">
+              {shield.features.map(f => (
+                <li key={f} className="flex items-start gap-2.5">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5" aria-hidden="true">
+                    <circle cx="7" cy="7" r="6.5" fill="#F0FDF4" stroke="#86EFAC" />
+                    <path d="M4 7l2 2 4-4" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="text-xs text-brand-muted leading-relaxed">{f}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <Button onClick={() => handleStart('post')}>Review my quote — free preview →</Button>
+              <Link href="/sample" className="text-sm font-semibold text-brand-amber-deep hover:text-brand-navy underline underline-offset-2 text-center">
+                See a sample report →
+              </Link>
+            </div>
           </div>
-          <p className="text-center mt-6">
-            <Link href="/sample" className="text-sm font-semibold text-brand-muted hover:text-brand-navy underline underline-offset-2">
-              See a sample Quote Shield report →
-            </Link>
-          </p>
+
+          {/* Secondary: Diagnostic Brief (no quote yet) */}
+          <div className="mt-4 bg-white border border-brand-border rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-navy">Don&apos;t have a quote yet?</p>
+              <p className="text-xs text-brand-muted mt-0.5 leading-relaxed">
+                A Diagnostic Brief explains the problem, what it should cost, and exactly who to hire — so you&apos;re ready before you call anyone.
+              </p>
+            </div>
+            <button
+              onClick={() => handleStart('pre')}
+              className="text-xs font-semibold text-brand-navy border border-brand-border rounded-lg px-3.5 py-2 hover:border-brand-border-dark transition-colors whitespace-nowrap flex-shrink-0"
+            >
+              Get a Diagnostic Brief →
+            </button>
+          </div>
         </section>
 
         {/* ── How it works ──────────────────────────────────────────────────── */}
@@ -183,9 +209,14 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto px-5">
             <h2 className="text-3xl font-bold text-brand-navy text-center mb-12">How it works</h2>
             <div className="grid sm:grid-cols-3 gap-8">
-              {HOW_IT_WORKS.map(({ n, title, body }) => (
+              {HOW_IT_WORKS.map(({ n, Icon, title, body }) => (
                 <div key={n}>
-                  <p className="text-3xl font-bold text-brand-amber mb-3">{n}</p>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand-bg border border-brand-border flex items-center justify-center flex-shrink-0">
+                      <Icon size={18} className="text-brand-amber-deep" />
+                    </div>
+                    <span className="text-2xl font-bold text-brand-border tabular-nums">{n}</span>
+                  </div>
                   <p className="text-base font-semibold text-brand-navy mb-2">{title}</p>
                   <p className="text-sm text-brand-muted leading-relaxed">{body}</p>
                 </div>
@@ -218,16 +249,16 @@ export default function HomePage() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   {/* amber-deep: white text on the lighter brand amber fails AA at this size */}
                   <button
-                    onClick={() => handleStart('pre')}
+                    onClick={() => handleStart('post')}
                     className="px-5 py-3 bg-brand-amber-deep text-white text-sm font-semibold rounded-xl hover:bg-opacity-90 transition-all"
                   >
-                    Start a Diagnostic Brief →
+                    Review my quote →
                   </button>
                   <button
-                    onClick={() => handleStart('post')}
+                    onClick={() => handleStart('pre')}
                     className="px-5 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 text-white text-sm font-semibold rounded-xl hover:bg-opacity-20 transition-all"
                   >
-                    Evaluate a quote
+                    No quote yet? Diagnose a problem
                   </button>
                 </div>
               </div>

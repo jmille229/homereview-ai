@@ -63,3 +63,25 @@
     @apply absolute inset-0 flex items-center justify-center;
   }
 }
+
+/* ── Hero scan animation (decorative) ──────────────────────────────────────── */
+@keyframes hr-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes hr-scan {
+  0%   { top: 4%;  opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 92%; opacity: 0; }
+}
+
+/* Annotation chips + scan beam are hidden->revealed only when motion is allowed;
+   under reduced-motion they're simply shown, no animation. */
+.hr-chip { opacity: 1; }
+.hr-beam { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hr-chip { opacity: 0; animation: hr-pop 0.5s ease-out forwards; }
+  .hr-beam { display: block; animation: hr-scan 2.6s ease-in-out 0.2s 1 forwards; }
+}
