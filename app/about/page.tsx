@@ -21,7 +21,7 @@ const VALUES = [
   },
   {
     title: 'Priced fairly',
-    body: 'A professional consultation costs $200–$500. A contractor service call to diagnose a problem costs $75–$150. We charge $29 for a Diagnostic Brief and $79 for a Quote Shield — less than one service call, available in under a minute, at 2am if that\'s when you need it.',
+    body: 'A professional consultation costs $200–$500. A contractor service call to diagnose a problem costs $75–$150. We charge $24 for a Diagnostic Brief and $59 for a Quote Shield — less than one service call, available in under a minute, at 2am if that\'s when you need it.',
   },
 ]
 
