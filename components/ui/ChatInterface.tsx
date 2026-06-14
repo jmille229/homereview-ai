@@ -14,7 +14,6 @@ interface ChatInterfaceProps {
 const CHAT_DAYS: Record<string, number> = {
   brief:  30,
   shield: 60,
-  bundle: 60,
 }
 
 export function ChatInterface({

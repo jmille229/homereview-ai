@@ -22,7 +22,6 @@ import type { Product } from './enums'
 const PRODUCT_ACCESS_DAYS: Record<Product, number> = {
   brief:  30,
   shield: 60,
-  bundle: 60,
 }
 
 export function accessWindowSeconds(product: Product): number {

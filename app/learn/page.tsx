@@ -188,9 +188,10 @@ export default function LearnPage() {
         {/* Footer nav */}
         <div className="flex gap-5 justify-center mt-10 pt-8 border-t border-brand-border">
           {[
-            { href: '/',      label: 'Home' },
-            { href: '/about', label: 'About' },
-            { href: '/terms', label: 'Terms' },
+            { href: '/',        label: 'Home' },
+            { href: '/about',   label: 'About' },
+            { href: '/privacy', label: 'Privacy' },
+            { href: '/terms',   label: 'Terms' },
           ].map(({ href, label }) => (
             <Link
               key={href}

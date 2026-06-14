@@ -30,7 +30,7 @@ export type CategoryId =
   | 'pest'
   | 'maintenance'
 
-export type Product = 'brief' | 'shield' | 'bundle'
+export type Product = 'brief' | 'shield'
 
 export type AllowedMimeType =
   | 'image/jpeg'

@@ -7,7 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 interface RecoveredReport {
   path:        string
-  product:     'brief' | 'shield' | 'bundle'
+  product:     'brief' | 'shield'
   category:    string
   purchasedAt: string
 }
@@ -15,7 +15,6 @@ interface RecoveredReport {
 const PRODUCT_LABEL: Record<string, string> = {
   brief:  'Diagnostic Brief',
   shield: 'Quote Shield',
-  bundle: 'HomeReview Bundle',
 }
 
 function formatDate(iso: string) {

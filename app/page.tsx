@@ -278,6 +278,7 @@ export default function HomePage() {
                   { href: '/learn',   label: 'Learn' },
                   { href: '/about',   label: 'About' },
                   { href: '/recover', label: 'My report' },
+                  { href: '/privacy', label: 'Privacy' },
                   { href: '/terms',   label: 'Terms' },
                 ].map(({ href, label }) => (
                   <Link key={href} href={href} className="text-xs text-brand-muted hover:text-brand-navy transition-colors">

@@ -8,6 +8,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
+import { ShieldIcon } from '@/components/ui/icons'
 import type { FollowupResponse, Product } from '@/lib/types'
 import { MAX_FOLLOWUP_QUESTIONS } from '@/lib/validators'
 
@@ -366,6 +367,12 @@ export default function PreviewPage() {
               <p className="text-xs text-brand-muted text-center mt-2.5">
                 Secure checkout via Stripe · One-time payment · No subscription
               </p>
+              <div className="flex items-center justify-center gap-1.5 mt-3 pt-3 border-t border-brand-border">
+                <ShieldIcon size={14} className="text-emerald-600 flex-shrink-0" />
+                <p className="text-xs font-semibold text-brand-navy">
+                  Money-back guarantee — not useful? Email us for a full refund.
+                </p>
+              </div>
             </div>
           </div>
         </div>

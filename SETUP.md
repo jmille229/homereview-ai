@@ -82,7 +82,7 @@ session URL alone:
 
 - After Stripe confirms payment, `/api/report` mints a signed, HttpOnly,
   per-session cookie (`hr_access_<sessionId>`) whose lifetime matches the
-  product window (30 days for Brief, 60 days for Shield/Bundle).
+  product window (30 days for Brief, 60 days for Shield).
 - The report pages and the chat / living-report-update APIs require a valid
   cookie. The status-polling endpoint is intentionally not gated (it reveals
   nothing beyond the URL the buyer already has).
