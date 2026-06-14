@@ -94,6 +94,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         paid:   true,
         paidAt: new Date().toISOString(),
         payerEmail,
+        stripeSessionId: checkoutSession.id,
         product: product as StoredSession['product'],
       })
       if (payerEmail) {

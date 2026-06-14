@@ -324,11 +324,12 @@ export async function POST(req: Request): Promise<NextResponse> {
   // session.paid — if it's false during generation, every poll returns 404.
   try {
     await updateSession(reportSessionId, {
-      paid:         true,
-      paidAt:       new Date().toISOString(),
+      paid:            true,
+      paidAt:          new Date().toISOString(),
       payerEmail,
+      stripeSessionId: data.stripeSessionId,
       product,
-      reportStatus: 'generating',
+      reportStatus:    'generating',
     })
     // Index for email-based recovery (best-effort — never block the purchase).
     if (payerEmail) {
