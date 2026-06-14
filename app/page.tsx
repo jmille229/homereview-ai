@@ -171,6 +171,11 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+          <p className="text-center mt-6">
+            <Link href="/sample" className="text-sm font-semibold text-brand-muted hover:text-brand-navy underline underline-offset-2">
+              See a sample Quote Shield report →
+            </Link>
+          </p>
         </section>
 
         {/* ── How it works ──────────────────────────────────────────────────── */}

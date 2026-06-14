@@ -318,10 +318,20 @@ export default function PreviewPage() {
             <div className="flex-1 h-px bg-brand-border" />
           </div>
 
-          <p className="text-sm text-brand-muted leading-relaxed mb-6">
+          <p className="text-sm text-brand-muted leading-relaxed mb-3">
             Your free preview is the start. The full report gives you everything
             you need to move forward with confidence — including unlimited
             follow-up chat for your entire window.
+          </p>
+          <p className="mb-6">
+            <a
+              href="/sample"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-brand-amber-deep hover:text-brand-navy underline underline-offset-2"
+            >
+              See a sample report first →
+            </a>
           </p>
 
           {/* Primary package — prominent */}
