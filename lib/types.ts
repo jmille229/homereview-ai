@@ -130,6 +130,8 @@ export interface StoredSession {
   /** Email the payer used at Stripe checkout. Used to reclaim access on a new
    *  device. Stored lowercased; never returned to the client. */
   payerEmail?: string
+  /** Stripe checkout session id (cs_...) — stored for support/refund lookup. */
+  stripeSessionId?: string
   product?: import('./enums').Product
   reportStatus?: import('./enums').ReportStatus
   report?: DiagnosticBriefReport | QuoteShieldReport
