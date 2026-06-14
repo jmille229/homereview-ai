@@ -29,6 +29,7 @@ import {
   createAccessToken,
   hasValidAccess,
 } from '@/lib/access'
+import { sendReportReadyEmail, sendReportFailedEmail, sendOpsAlert } from '@/lib/email'
 import type {
   DiagnosticBriefReport,
   GenerateReportResponse,
@@ -95,6 +96,8 @@ async function generateAndSaveReport(
   // Passed through from the POST handler so the background function has access
   // to the uploaded contractor quote document without re-fetching from anywhere.
   files: UploadedFile[] = [],
+  // Payer's checkout email — used to send the report-ready / failure email.
+  payerEmail?: string,
 ): Promise<void> {
   // Outer try-catch ensures markReportFailed is ALWAYS called on any failure,
   // including errors that occur before the Claude call (e.g. getCategoryLabel).
@@ -140,6 +143,16 @@ async function generateAndSaveReport(
 
     await markReportComplete(sessionId, report)
 
+    // Notify the buyer their report is ready (best-effort; dormant if email off).
+    if (payerEmail && session.product) {
+      await sendReportReadyEmail({
+        to: payerEmail,
+        sessionId,
+        product: session.product,
+        categoryLabel,
+      })
+    }
+
   } catch (err) {
     // Log the ACTUAL error server-side for debugging, but persist only a
     // generic, user-safe message. The stored value is returned verbatim to the
@@ -156,6 +169,19 @@ async function generateAndSaveReport(
       sessionId,
       'We couldn\'t finish building your report. Please try again — you won\'t be charged again.',
     )
+    // Ops alert + apology to the buyer (both best-effort, dormant if unconfigured).
+    await sendOpsAlert(
+      'Report generation failed',
+      `session=${sessionId} flow=${session.flow} category=${session.category}\n${errorMessage}`,
+    )
+    if (payerEmail && session.product) {
+      await sendReportFailedEmail({
+        to: payerEmail,
+        sessionId,
+        product: session.product,
+        categoryLabel: getCategoryLabel(session.category),
+      })
+    }
   }
 }
 
@@ -316,6 +342,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Service unavailable. Please try again.' }, { status: 503 })
   }
 
+  // The fetched session predates the paid/product update above; reflect the
+  // current product so the background function emails with the right details.
+  session.product = product
+
   // ── Fire background generation and return immediately ──────────────────────
   //
   // waitUntil registers the promise but does NOT await it before sending the
@@ -329,7 +359,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   //   - Total perceived wait time: 2-3 seconds to acknowledgement, not 40 seconds
   //
   waitUntil(
-    generateAndSaveReport(reportSessionId, session, data.files ?? []).finally(async () => {
+    generateAndSaveReport(reportSessionId, session, data.files ?? [], payerEmail).finally(async () => {
       // Always release the lock, whether generation succeeded or failed
       await releaseLock!()
     }),
