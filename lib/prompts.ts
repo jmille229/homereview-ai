@@ -148,10 +148,21 @@ Required schema:
 
 // ─── Quote Shield prompt (post-quote) ────────────────────────────────────────
 
-export function buildQuoteShieldSystem(categoryLabel: string, zip: string): string {
+export function buildQuoteShieldSystem(
+  categoryLabel: string,
+  zip: string,
+  previewRange?: { min: number; max: number },
+): string {
   const regionNote = zip
     ? `The homeowner is in zip code ${zip}. Use this for regional cost benchmarking — factor in local labor market conditions.`
     : 'No zip code provided. Use national median cost ranges.'
+
+  // Anchor the report's fair range to the figure already shown in the free
+  // preview, so the number the homeowner saw before paying stays consistent.
+  const anchorNote = previewRange
+    ? `\nESTABLISHED FAIR-RANGE ANCHOR
+A preliminary fair-market range of $${previewRange.min}–$${previewRange.max} was already shown to this homeowner in their free preview, from the same quote and region. Treat it as the established estimate: your estimatedFairMin and estimatedFairMax should match it. Only deviate if the full document gives a specific, concrete reason the preliminary figure was wrong — and if you do, state that reason explicitly in pricingAnalysis. Do not drift from it without justification.`
+    : ''
 
   return `${INJECTION_GUARD}
 
@@ -168,6 +179,7 @@ This homeowner HAS received a contractor quote and needs to evaluate it before c
 
 Issue category: ${categoryLabel}
 ${regionNote}
+${anchorNote}
 
 INSTRUCTIONS
 

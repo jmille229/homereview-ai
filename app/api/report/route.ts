@@ -130,7 +130,11 @@ async function generateAndSaveReport(
       report = repairDiagnosticBrief(rawBrief)
     } else {
       const rawShield = await callClaude({
-        system:    buildQuoteShieldSystem(categoryLabel, session.zip),
+        system:    buildQuoteShieldSystem(
+          categoryLabel,
+          session.zip,
+          session.preview ? { min: session.preview.costMin, max: session.preview.costMax } : undefined,
+        ),
         userText,
         files,     // contractor quote document from sessionStorage — anchors fair price range
         schema:    quoteShieldSchema,
