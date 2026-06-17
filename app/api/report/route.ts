@@ -120,7 +120,7 @@ async function generateAndSaveReport(
 
     if (session.flow === 'pre') {
       const rawBrief = await callClaude({
-        system:    buildDiagnosticBriefSystem(categoryLabel),
+        system:    buildDiagnosticBriefSystem(categoryLabel, session.preview?.severity),
         userText,
         schema:    diagnosticBriefSchema,
         model:     'sonnet',

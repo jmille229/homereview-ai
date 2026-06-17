@@ -99,8 +99,8 @@ export async function callClaude<T>({
         {
           model:       modelId,
           max_tokens:  maxTokens,
-          temperature: 0.2,  // low temperature for structured JSON output — reduces variance,
-                             // prevents ignoring prompt prohibitions (e.g. asking what quote states)
+          temperature: 0,    // structured JSON output — temperature 0 for maximum
+                             // determinism so the same input yields the same result
           system:      finalSystem,
           messages:    [{ role: 'user', content: userContent }],
         },

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 
 import { callClaude } from '@/lib/claude'
-import { createSession } from '@/lib/redis'
+import { createSession, previewCacheKey, getCachedPreview, setCachedPreview } from '@/lib/redis'
 import { previewLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildPreviewSystem, sanitizeInput } from '@/lib/prompts'
 import {
@@ -89,25 +89,41 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const userText = `Issue description: ${sanitizedDesc}${answersContext}\nZip code: ${zip || 'Not provided'}`
 
-  // ── Call Claude (Sonnet — preview quality drives the purchase decision) ────
-  let preview: ReturnType<typeof previewResultSchema.parse>
-  try {
-    preview = await callClaude({
-      system:    buildPreviewSystem(flow, categoryLabel),
-      userText,
-      files,
-      schema:    previewResultSchema,
-      model:     'sonnet',
-      maxTokens: 600,
-    })
-  } catch (err) {
-    console.error('[analyze] Claude call failed:', {
-      message: err instanceof Error ? err.message : 'Unknown error',
-    })
-    return NextResponse.json(
-      { error: 'Analysis failed. Please try again.' },
-      { status: 502 },
-    )
+  // ── Deterministic cache — identical inputs return the identical preview ─────
+  // (so the severity rating never varies for the same input). Keyed on the
+  // normalized inputs that actually drive the analysis.
+  const cacheKey = previewCacheKey(JSON.stringify({
+    flow,
+    category,
+    description: sanitizedDesc,
+    zip,
+    answers: answers.map(a => ({ q: a.question, a: sanitizeInput(a.answer, 500) })),
+    files:   files.map(f => f.data),
+  }))
+
+  let preview: ReturnType<typeof previewResultSchema.parse> | null = null
+  try { preview = await getCachedPreview(cacheKey) } catch { /* cache miss is fine */ }
+
+  if (!preview) {
+    try {
+      preview = await callClaude({
+        system:    buildPreviewSystem(flow, categoryLabel),
+        userText,
+        files,
+        schema:    previewResultSchema,
+        model:     'sonnet',
+        maxTokens: 600,
+      })
+    } catch (err) {
+      console.error('[analyze] Claude call failed:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return NextResponse.json(
+        { error: 'Analysis failed. Please try again.' },
+        { status: 502 },
+      )
+    }
+    try { await setCachedPreview(cacheKey, preview) } catch { /* non-fatal */ }
   }
 
   // ── Persist session to Redis ───────────────────────────────────────────────

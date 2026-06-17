@@ -22,7 +22,8 @@ export default function QuestionsPage() {
   const router = useRouter()
   const {
     flow, category, description, zip,
-    questions, answers, setQuestions, setAnswers, setSessionId, setPreview,
+    questions, answers, preview, setQuestions, setAnswers, setSessionId, setPreview,
+    setSeverityNotice,
   } = useSessionStore()
 
   // Seed from previously saved answers so navigating back from the preview
@@ -68,9 +69,18 @@ export default function QuestionsPage() {
         setSubmitting(false)
         return
       }
+      const nextPreview = (json as AnalyzeResponse).preview
+      // If this is a re-run after editing inputs and the severity changed,
+      // record it so the preview can explain the change to the customer.
+      const prevSeverity = preview?.severity
+      setSeverityNotice(
+        prevSeverity && prevSeverity !== nextPreview.severity
+          ? { from: prevSeverity, to: nextPreview.severity }
+          : null,
+      )
       setAnswers(answers)
       setSessionId((json as AnalyzeResponse).sessionId)
-      setPreview((json as AnalyzeResponse).preview)
+      setPreview(nextPreview)
       track('preview_generated', { flow: flow ?? 'unknown' })
       router.push('/preview')
     } catch {
@@ -79,7 +89,7 @@ export default function QuestionsPage() {
     } finally {
       clearInterval(interval)
     }
-  }, [flow, category, description, zip, setAnswers, setSessionId, setPreview, router])
+  }, [flow, category, description, zip, preview, setAnswers, setSessionId, setPreview, setSeverityNotice, router])
 
   useEffect(() => {
     if (!flow || !category || !description) return

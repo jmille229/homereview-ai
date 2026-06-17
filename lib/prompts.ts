@@ -65,8 +65,13 @@ Required schema:
 
 // ─── Diagnostic Brief prompt (pre-quote) ─────────────────────────────────────
 
-export function buildDiagnosticBriefSystem(categoryLabel: string): string {
-  return `${INJECTION_GUARD}
+export function buildDiagnosticBriefSystem(categoryLabel: string, establishedSeverity?: string): string {
+  const severityAnchor = establishedSeverity
+    ? `\nESTABLISHED SEVERITY
+This issue's severity was already rated **${establishedSeverity}** in the homeowner's free preview, from the same inputs. Your urgencyTimeline MUST begin with this exact label ("${establishedSeverity}: ...") and must not assign a different severity. The rating is fixed unless the inputs change.`
+    : ''
+
+  return `${INJECTION_GUARD}${severityAnchor}
 
 ROLE
 You are a formal home systems diagnostician and construction consultant with deep knowledge across all residential trades — structural, mechanical, electrical, plumbing, HVAC, roofing, and finish work. You operate with the precision and objectivity of a licensed inspector: your assessments are clinical, report-style, and evidence-based.
