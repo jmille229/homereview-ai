@@ -43,6 +43,7 @@ export default async function SharedReportPage({ params, searchParams }: Props) 
         updatesExpired={false}
         product={session.product ?? 'shield'}
         initialChatMessages={[]}
+        severity={session.preview?.severity}
         readOnly
       />
     )

@@ -61,6 +61,7 @@ export default async function ShieldReportPage({ params }: Props) {
       initialChatMessages={session.chatMessages ?? []}
       reportFailed={reportFailed}
       reportError={session.reportError}
+      severity={session.preview?.severity}
       shareUrl={shareUrl}
     />
   )

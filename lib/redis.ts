@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis'
 import { createHash } from 'crypto'
-import type { StoredSession } from './types'
+import type { StoredSession, PreviewResult } from './types'
 
 // ─── Singleton client ─────────────────────────────────────────────────────────
 
@@ -214,4 +214,25 @@ export async function indexSessionForRecovery(email: string, sessionId: string):
 export async function findSessionIdsByEmail(email: string): Promise<string[]> {
   const ids = await redis.smembers(recoveryKey(email))
   return (ids as string[]) ?? []
+}
+
+// ─── Preview cache (deterministic results for identical inputs) ────────────────
+//
+// The free preview is cached by a hash of its normalized inputs so the SAME
+// input always returns the SAME preview — including the severity rating — rather
+// than re-rolling the model each time. Also saves the cost of duplicate calls.
+
+const PREVIEW_CACHE_TTL_SECONDS = 60 * 60 * 24 * 14 // 14 days
+
+export function previewCacheKey(canonicalInput: string): string {
+  return `preview:${createHash('sha256').update(canonicalInput).digest('hex')}`
+}
+
+export async function getCachedPreview(key: string): Promise<PreviewResult | null> {
+  const cached = await redis.get<PreviewResult>(key)
+  return cached ?? null
+}
+
+export async function setCachedPreview(key: string, preview: PreviewResult): Promise<void> {
+  await redis.set(key, preview, { ex: PREVIEW_CACHE_TTL_SECONDS })
 }

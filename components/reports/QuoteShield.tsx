@@ -5,6 +5,8 @@ import { NavBar } from '@/components/ui/NavBar'
 import { ChatInterface } from '@/components/ui/ChatInterface'
 import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SeverityBadge } from '@/components/ui/SeverityBadge'
+import type { Severity } from '@/lib/types'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
 import type {
   ChatMessage,
@@ -28,6 +30,8 @@ interface Props {
   initialChatMessages: ChatMessage[]
   reportFailed?: boolean
   reportError?: string
+  /** Carried from the preview (single source of truth for severity). */
+  severity?: string
   /** Read-only shared view: hides chat, uploads, tabs, and recovery. */
   readOnly?: boolean
   /** When present (owner view), shows a Share button that copies this link. */
@@ -122,6 +126,7 @@ export function QuoteShield({
   initialChatMessages,
   reportFailed,
   reportError,
+  severity,
   readOnly = false,
   shareUrl,
 }: Props) {
@@ -275,6 +280,11 @@ export function QuoteShield({
             <p className="text-sm text-brand-muted">
               Post-quote analysis · Purchased {formatDate(paidAt)}
             </p>
+            {severity && (
+              <div className="mt-2.5">
+                <SeverityBadge severity={severity as Severity} />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 print:hidden">
             {shareUrl && !readOnly && (

@@ -21,16 +21,21 @@ interface SessionState {
   sessionId: string | null
   preview:   PreviewResult | null
 
+  // Set when a re-run (after the user edits inputs) produces a different
+  // severity than the prior preview — so we can explain the change to them.
+  severityNotice: { from: string; to: string } | null
+
   // ── Actions ──
-  setFlow:        (flow: Flow) => void
-  setCategory:    (category: CategoryId) => void
-  setDescription: (description: string) => void
-  setZip:         (zip: string) => void
-  setQuestions:   (questions: AiQuestion[]) => void
-  setAnswers:     (answers: UserAnswer[]) => void
-  setSessionId:   (id: string) => void
-  setPreview:     (preview: PreviewResult) => void
-  reset:          () => void
+  setFlow:           (flow: Flow) => void
+  setCategory:       (category: CategoryId) => void
+  setDescription:    (description: string) => void
+  setZip:            (zip: string) => void
+  setQuestions:      (questions: AiQuestion[]) => void
+  setAnswers:        (answers: UserAnswer[]) => void
+  setSessionId:      (id: string) => void
+  setPreview:        (preview: PreviewResult) => void
+  setSeverityNotice: (notice: { from: string; to: string } | null) => void
+  reset:             () => void
 }
 
 const initialState = {
@@ -42,6 +47,7 @@ const initialState = {
   answers:     [],
   sessionId:   null,
   preview:     null,
+  severityNotice: null,
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -57,8 +63,9 @@ export const useSessionStore = create<SessionState>()(
       setZip:         (zip)         => set({ zip }),
       setQuestions:   (questions)   => set({ questions }),
       setAnswers:     (answers)     => set({ answers }),
-      setSessionId:   (id)          => set({ sessionId: id }),
-      setPreview:     (preview)     => set({ preview }),
+      setSessionId:      (id)          => set({ sessionId: id }),
+      setPreview:        (preview)     => set({ preview }),
+      setSeverityNotice: (notice)      => set({ severityNotice: notice }),
 
       reset: () => set(initialState),
     }),
@@ -76,6 +83,7 @@ export const useSessionStore = create<SessionState>()(
         answers:     state.answers,
         sessionId:   state.sessionId,
         preview:     state.preview,
+        severityNotice: state.severityNotice,
       }),
     },
   ),

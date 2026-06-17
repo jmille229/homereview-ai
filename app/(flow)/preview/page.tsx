@@ -193,7 +193,7 @@ function Check() {
 
 export default function PreviewPage() {
   const router = useRouter()
-  const { flow, preview, sessionId } = useSessionStore()
+  const { flow, preview, sessionId, severityNotice } = useSessionStore()
 
   const [purchasing, setPurchasing]       = useState(false)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
@@ -260,6 +260,18 @@ export default function PreviewPage() {
           </p>
           <p className="text-sm text-brand-navy leading-relaxed">{preview.summary}</p>
         </div>
+
+        {/* ── Severity-changed notice (after the user edited their answers) ─ */}
+        {severityNotice && severityNotice.to === preview.severity && (
+          <div role="status" className="mb-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-sm font-semibold text-amber-900 mb-1">
+              Severity updated: {severityNotice.from} → {severityNotice.to}
+            </p>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Based on your updated answers, we re-rated this issue. {preview.severityReason}
+            </p>
+          </div>
+        )}
 
         {/* ── Severity + cost ──────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
