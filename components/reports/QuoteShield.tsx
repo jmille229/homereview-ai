@@ -7,7 +7,7 @@ import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import type { Severity } from '@/lib/types'
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST, MAX_TOTAL_UPLOAD_BYTES } from '@/lib/validators'
 import type {
   ChatMessage,
   QuoteShieldReport,
@@ -164,7 +164,7 @@ export function QuoteShield({
         return
       }
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        setFileError(`"${file.name}" exceeds the 2MB limit.`)
+        setFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
         return
       }
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -174,6 +174,11 @@ export function QuoteShield({
         reader.readAsDataURL(file)
       })
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
+    }
+    const totalBytes = [...files, ...validated].reduce((sum, f) => sum + f.size, 0)
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB.`)
+      return
     }
     setFiles((prev) => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
     if (fileRef.current) fileRef.current.value = ''
@@ -358,7 +363,7 @@ export function QuoteShield({
               className="w-full border border-dashed border-brand-border-dark rounded-xl p-4 text-center
                          hover:bg-white transition-colors cursor-pointer mb-2"
             >
-              <p className="text-xs text-brand-muted">Tap to upload (JPEG, PNG, PDF — max 2MB each)</p>
+              <p className="text-xs text-brand-muted">Tap to upload (JPEG, PNG, PDF — max 3MB each, 3MB total)</p>
               <input
                 ref={fileRef}
                 type="file"
