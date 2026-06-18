@@ -67,6 +67,15 @@ const filesArraySchema = z
     { message: `Combined file size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB.` },
   )
 
+/**
+ * Optional secondary areas the issue "also affects." The primary `category`
+ * remains the report's lens; these are passed to the AI as context only. Capped
+ * at the full category count and de-duplicated downstream.
+ */
+const relatedAreasSchema = z
+  .array(z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]))
+  .max(CATEGORY_IDS.length)
+
 const userAnswerSchema = z.object({
   questionId: z.string().min(1).max(50),
   question:   z.string().min(1).max(500),
@@ -76,9 +85,10 @@ const userAnswerSchema = z.object({
 // ─── API input schemas ────────────────────────────────────────────────────────
 
 export const questionsRequestSchema = z.object({
-  flow:        z.enum(['pre', 'post'] as [Flow, Flow]),
-  category:    z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]),
-  description: z.string().min(20).max(4000),
+  flow:         z.enum(['pre', 'post'] as [Flow, Flow]),
+  category:     z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]),
+  relatedAreas: relatedAreasSchema.optional(),
+  description:  z.string().min(20).max(4000),
   // For post-quote flow, the uploaded contractor quote document is included
   // so Claude can read the quote directly before generating clarifying questions.
   // This prevents asking the homeowner to describe what the quote already states.
@@ -88,6 +98,7 @@ export const questionsRequestSchema = z.object({
 export const analyzeRequestSchema = z.object({
   flow: z.enum(['pre', 'post'] as [Flow, Flow]),
   category: z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]),
+  relatedAreas: relatedAreasSchema.optional(),
   description: z
     .string()
     .min(20, 'Please provide at least 20 characters describing the issue.')

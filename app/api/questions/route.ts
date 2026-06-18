@@ -6,7 +6,7 @@ import { previewLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildQuestionsSystem, sanitizeInput } from '@/lib/prompts'
 import { questionsRequestSchema, questionsResultSchema, MAX_BODY_BYTES } from '@/lib/validators'
 import type { QuestionsResponse } from '@/lib/types'
-import { getCategoryLabel } from '@/lib/constants'
+import { getCategoryLabel, getRelatedAreaLabels } from '@/lib/constants'
 import { parseJsonBody } from '@/lib/http'
 import { hasValidPreviewPass } from '@/lib/gate'
 import { consumeDailyBudget } from '@/lib/budget'
@@ -64,6 +64,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const categoryLabel = getCategoryLabel(data.category)
+  const relatedLabels = getRelatedAreaLabels(data.category, data.relatedAreas)
   const sanitizedDesc = sanitizeInput(data.description)
   const files = data.files ?? []
 
@@ -78,7 +79,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   let result: ReturnType<typeof questionsResultSchema.parse>
   try {
     result = await callClaude({
-      system:    buildQuestionsSystem(data.flow, categoryLabel),
+      system:    buildQuestionsSystem(data.flow, categoryLabel, relatedLabels),
       userText:  `Issue description: ${sanitizedDesc}`,
       files,
       schema:    questionsResultSchema,

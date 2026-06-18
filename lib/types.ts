@@ -121,6 +121,9 @@ export interface StoredSession {
   id: string
   flow: import('./enums').Flow
   category: import('./enums').CategoryId
+  /** Optional secondary areas the issue "also affects." Context for the AI;
+   *  the primary `category` remains the report's lens. */
+  relatedAreas?: import('./enums').CategoryId[]
   description: string
   zip: string
   answers: UserAnswer[]
@@ -148,6 +151,7 @@ export interface StoredSession {
 export interface QuestionsRequest {
   flow: import('./enums').Flow
   category: import('./enums').CategoryId
+  relatedAreas?: import('./enums').CategoryId[]
   description: string
 }
 
@@ -158,6 +162,7 @@ export interface QuestionsResponse {
 export interface AnalyzeRequest {
   flow: import('./enums').Flow
   category: import('./enums').CategoryId
+  relatedAreas?: import('./enums').CategoryId[]
   description: string
   zip: string
   files: UploadedFile[]

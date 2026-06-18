@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { track } from '@vercel/analytics'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
 import { Button } from '@/components/ui/Button'
-import { ScaleIcon, ShieldIcon, DocumentIcon, ChatIcon, PaperclipIcon, SearchIcon } from '@/components/ui/icons'
+import { ScaleIcon, ShieldIcon, DocumentIcon, ChatIcon, SearchIcon, ClipboardIcon, PaperclipIcon } from '@/components/ui/icons'
 import { QuoteScanVisual } from '@/components/ui/QuoteScanVisual'
 import type { Flow } from '@/lib/types'
 
@@ -18,36 +19,42 @@ const SAMPLE_PREVIEW = {
   insight: 'Running the system with low refrigerant causes the compressor to work without lubrication — burnout typically occurs within days to weeks, converting an $800–$1,500 repair into a $3,500–$6,000+ compressor replacement. Turn off the system until diagnosed.',
 }
 
+// The two products map to two moments on one timeline — something's wrong and
+// you haven't called anyone (Brief), or you have a quote and haven't signed
+// (Shield). Presenting them as a sequence makes the relationship self-evident,
+// so the cards need no framing sentence above them. Styling is identical:
+// equal weight, the user self-locates by their moment, and we instrument the
+// click so the hierarchy can be settled with data rather than opinion.
 const PRODUCTS = [
   {
-    flow:       'pre' as Flow,
-    badge:      'Diagnostic Brief',
-    badgeStyle: 'bg-blue-50 text-blue-700',
-    label:      'I have a home problem.',
-    sub:        "Help me understand it before I call anyone.",
+    flow:    'pre' as Flow,
+    Icon:    SearchIcon,
+    moment:  'Before you call',
+    badge:   'Diagnostic Brief',
+    label:   'I have a home problem.',
+    sub:     'Understand it before you call anyone.',
     features: [
       'Plain-language diagnosis of the likely root cause',
       'Severity rating & how long it\'s safe to wait',
       'DIY vs. pro — and exactly which type of pro',
-      '8 questions to ask before picking a contractor',
-      'Hiring red flags + cost preparation guide',
-      '30-day follow-up chat included',
+      '8 questions to ask before you hire',
     ],
+    cta:     'Diagnose my problem — free',
   },
   {
-    flow:       'post' as Flow,
-    badge:      'Quote Shield',
-    badgeStyle: 'bg-emerald-50 text-emerald-700',
-    label:      'I have a quote to evaluate.',
-    sub:        'Tell me if it\'s fair — and help me push back.',
+    flow:    'post' as Flow,
+    Icon:    ClipboardIcon,
+    moment:  'Before you sign',
+    badge:   'Quote Shield',
+    label:   'I have a contractor\'s quote.',
+    sub:     'Find out if it\'s fair before you commit.',
     features: [
-      'Line-by-line analysis with regional benchmarks',
-      'Pricing verdict: Fair / High End / Inflated',
+      'Line-by-line pricing vs. regional benchmarks',
+      'Verdict: Fair / High End / Inflated',
       'Upsell & padding detection, missing scope',
-      'Tailored negotiation guide with exact language',
-      'Living report — upload revised quotes for 60 days',
-      '60-day follow-up chat included',
+      'Negotiation guide with exact language to use',
     ],
+    cta:     'Review my quote — free',
   },
 ]
 
@@ -58,24 +65,27 @@ const TRUST_STRIP = [
   { Icon: ChatIcon,     text: 'Chat support included' },
 ]
 
+// Product-neutral — works whether the visitor is diagnosing a problem or
+// evaluating a quote. (The old steps assumed a quote upload, which misdescribed
+// the Diagnostic Brief path.)
 const HOW_IT_WORKS = [
   {
     n:     '01',
     Icon:  PaperclipIcon,
-    title: 'Upload your quote',
-    body:  'Attach the contractor\'s estimate (PDF or photo) and add a line about the job. Takes about two minutes.',
+    title: 'Tell us what\'s going on',
+    body:  'Describe the problem or upload the contractor\'s quote — a photo or PDF, plus a line or two of context. Takes about two minutes.',
   },
   {
     n:     '02',
     Icon:  SearchIcon,
-    title: 'We scan it line by line',
-    body:  'Our independent AI checks pricing against regional norms, spots padding and missing work, and benchmarks a fair range.',
+    title: 'Independent AI analysis',
+    body:  'Our AI works only for you — no referrals, no kickbacks. It diagnoses the likely cause, benchmarks fair cost, and flags anything that doesn\'t add up.',
   },
   {
     n:     '03',
     Icon:  ShieldIcon,
-    title: 'Get your free preview, then the full report',
-    body:  'See the headline finding free. Unlock the full breakdown, negotiation language, and 60 days of follow-up chat and updates.',
+    title: 'Free preview, then the full report',
+    body:  'See the headline finding free. Unlock the full breakdown, the questions to ask, negotiation language, and follow-up chat.',
   },
 ]
 
@@ -84,23 +94,30 @@ export default function HomePage() {
   const { reset, setFlow } = useSessionStore()
 
   const handleStart = (flow: Flow) => {
+    track('homepage_path_click', { path: flow === 'pre' ? 'brief' : 'shield' })
     reset()
     setFlow(flow)
     router.push('/intake')
   }
 
-  const shield = PRODUCTS.find(p => p.flow === 'post')!
+  // Nav "Start free" is path-neutral — no flow preset, so the intake page shows
+  // its own picker and the user self-selects there.
+  const handleStartNeutral = () => {
+    track('homepage_path_click', { path: 'nav' })
+    reset()
+    router.push('/intake')
+  }
 
   return (
     <div className="min-h-screen bg-brand-bg">
 
       {/* ── Navbar ──────────────────────────────────────────────────────────── */}
-      <NavBar variant="site" onStart={() => handleStart('pre')} />
+      <NavBar variant="site" onStart={handleStartNeutral} />
 
       <main>
 
-        {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <section className="max-w-5xl mx-auto px-5 pt-14 pb-14">
+        {/* ── Hero: unified message, moment-first ───────────────────────────── */}
+        <section className="max-w-5xl mx-auto px-5 pt-14 pb-10">
           <div className="grid md:grid-cols-2 gap-10 md:gap-8 items-center">
             {/* Copy */}
             <div className="text-center md:text-left">
@@ -112,29 +129,14 @@ export default function HomePage() {
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-bold text-brand-navy leading-[1.08] tracking-tight mb-5">
-                Is your contractor&apos;s quote{' '}
-                <span className="text-brand-amber-deep italic">fair?</span>
+                Never face a contractor{' '}
+                <span className="text-brand-amber-deep italic">unprepared.</span>
               </h1>
-              <p className="text-lg text-brand-muted leading-relaxed mb-8">
-                Upload the quote and our independent AI reviews it line by line —
-                flagging overpriced items, padding, and missing work, with the exact
-                questions to ask before you sign.
+              <p className="text-lg text-brand-muted leading-relaxed">
+                An independent AI advisor that tells you what&apos;s actually wrong,
+                what it should cost, and whether your quote is fair — before you call
+                anyone or sign anything. Always on your side.
               </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 md:justify-start justify-center mb-3">
-                <Button size="lg" onClick={() => handleStart('post')}>
-                  Review my quote — free →
-                </Button>
-              </div>
-              <p className="text-xs text-brand-muted mb-2">
-                Free preview in under 2 minutes · No credit card required
-              </p>
-              <button
-                onClick={() => handleStart('pre')}
-                className="text-xs font-semibold text-brand-muted hover:text-brand-navy underline underline-offset-2"
-              >
-                Don&apos;t have a quote yet? Diagnose a home problem →
-              </button>
             </div>
 
             {/* Visual */}
@@ -142,6 +144,56 @@ export default function HomePage() {
               <QuoteScanVisual />
             </div>
           </div>
+        </section>
+
+        {/* ── The fork: two equal paths on one timeline ─────────────────────── */}
+        <section id="products" className="max-w-4xl mx-auto px-5 pb-14">
+          <div className="grid md:grid-cols-2 gap-4">
+            {PRODUCTS.map(({ flow, Icon, moment, badge, label, sub, features, cta }) => (
+              <div
+                key={flow}
+                className="flex flex-col bg-white border border-brand-border rounded-2xl p-6 sm:p-7 hover:border-brand-border-dark transition-colors"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-amber-deep uppercase tracking-[0.06em]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-amber-deep" aria-hidden="true" />
+                    {moment}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-brand-muted">
+                    <Icon size={13} className="text-brand-muted" />
+                    {badge}
+                  </span>
+                </div>
+
+                <h2 className="text-xl font-bold text-brand-navy leading-snug mb-1">{label}</h2>
+                <p className="text-sm text-brand-muted mb-5">{sub}</p>
+
+                <ul className="space-y-2.5 mb-6 flex-1">
+                  {features.map(f => (
+                    <li key={f} className="flex items-start gap-2.5">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5" aria-hidden="true">
+                        <circle cx="7" cy="7" r="6.5" fill="#F0FDF4" stroke="#86EFAC" />
+                        <path d="M4 7l2 2 4-4" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span className="text-xs text-brand-muted leading-relaxed">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button full onClick={() => handleStart(flow)}>{cta} →</Button>
+                <p className="text-[11px] text-brand-muted text-center mt-2.5">
+                  Free preview · No credit card required
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-xs text-brand-muted mt-5">
+            Curious what you get?{' '}
+            <Link href="/sample" className="font-semibold text-brand-amber-deep hover:text-brand-navy underline underline-offset-2">
+              See a sample report →
+            </Link>
+          </p>
         </section>
 
         {/* ── Trust strip ───────────────────────────────────────────────────── */}
@@ -156,56 +208,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Product (one hero product: Quote Shield) ─────────────────────────── */}
-        <section id="products" className="max-w-3xl mx-auto px-5 py-16">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-brand-navy mb-3">What your report covers</h2>
-            <p className="text-base text-brand-muted">Everything you need to walk into the conversation informed.</p>
-          </div>
-
-          {/* Primary: Quote Shield */}
-          <div className="bg-white border-2 border-brand-navy rounded-2xl p-6 sm:p-8">
-            <span className="inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md mb-5 bg-emerald-50 text-emerald-700">
-              Quote Shield
-            </span>
-            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2.5 mb-7">
-              {shield.features.map(f => (
-                <li key={f} className="flex items-start gap-2.5">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 mt-0.5" aria-hidden="true">
-                    <circle cx="7" cy="7" r="6.5" fill="#F0FDF4" stroke="#86EFAC" />
-                    <path d="M4 7l2 2 4-4" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="text-xs text-brand-muted leading-relaxed">{f}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <Button onClick={() => handleStart('post')}>Review my quote — free preview →</Button>
-              <Link href="/sample" className="text-sm font-semibold text-brand-amber-deep hover:text-brand-navy underline underline-offset-2 text-center">
-                See a sample report →
-              </Link>
-            </div>
-          </div>
-
-          {/* Secondary: Diagnostic Brief (no quote yet) */}
-          <div className="mt-4 bg-white border border-brand-border rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-brand-navy">Don&apos;t have a quote yet?</p>
-              <p className="text-xs text-brand-muted mt-0.5 leading-relaxed">
-                A Diagnostic Brief explains the problem, what it should cost, and exactly who to hire — so you&apos;re ready before you call anyone.
-              </p>
-            </div>
-            <button
-              onClick={() => handleStart('pre')}
-              className="text-xs font-semibold text-brand-navy border border-brand-border rounded-lg px-3.5 py-2 hover:border-brand-border-dark transition-colors whitespace-nowrap flex-shrink-0"
-            >
-              Get a Diagnostic Brief →
-            </button>
-          </div>
-        </section>
-
-        {/* ── How it works ──────────────────────────────────────────────────── */}
-        <section id="how-it-works" className="border-t border-brand-border bg-white py-16">
+        {/* ── How it works (product-neutral) ────────────────────────────────── */}
+        <section id="how-it-works" className="bg-white py-16">
           <div className="max-w-4xl mx-auto px-5">
             <h2 className="text-3xl font-bold text-brand-navy text-center mb-12">How it works</h2>
             <div className="grid sm:grid-cols-3 gap-8">
@@ -235,30 +239,29 @@ export default function HomePage() {
         </section>
 
         {/* ── Sample preview CTA (dark navy) ────────────────────────────────── */}
-        <section className="py-16 px-5">
+        <section className="py-16 px-5 border-t border-brand-border">
           <div className="max-w-4xl mx-auto bg-brand-navy rounded-2xl p-8 sm:p-12">
             <div className="grid sm:grid-cols-2 gap-10 items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white leading-tight mb-4">
-                  Walk into every contractor call prepared.
+                  Walk into every contractor conversation prepared.
                 </h2>
                 <p className="text-sm text-white opacity-70 leading-relaxed mb-8">
                   Take a breath — we&apos;ll help you figure this out together.
                   Independent, jargon-free, squarely on your side.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  {/* amber-deep: white text on the lighter brand amber fails AA at this size */}
-                  <button
-                    onClick={() => handleStart('post')}
-                    className="px-5 py-3 bg-brand-amber-deep text-white text-sm font-semibold rounded-xl hover:bg-opacity-90 transition-all"
-                  >
-                    Review my quote →
-                  </button>
                   <button
                     onClick={() => handleStart('pre')}
                     className="px-5 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 text-white text-sm font-semibold rounded-xl hover:bg-opacity-20 transition-all"
                   >
-                    No quote yet? Diagnose a problem
+                    Diagnose a problem →
+                  </button>
+                  <button
+                    onClick={() => handleStart('post')}
+                    className="px-5 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 text-white text-sm font-semibold rounded-xl hover:bg-opacity-20 transition-all"
+                  >
+                    Review a quote →
                   </button>
                 </div>
               </div>

@@ -21,7 +21,7 @@ import {
 import { parseJsonBody } from '@/lib/http'
 import { filesHaveValidSignatures } from '@/lib/fileValidation'
 import { stripe } from '@/lib/stripe'
-import { getCategoryLabel } from '@/lib/constants'
+import { getCategoryLabel, getRelatedAreaLabels } from '@/lib/constants'
 import {
   accessCookieName,
   accessCookieOptions,
@@ -104,6 +104,7 @@ async function generateAndSaveReport(
   // Previously, errors here left the session stuck in 'generating' forever.
   try {
     const categoryLabel = getCategoryLabel(session.category)
+    const relatedLabels = getRelatedAreaLabels(session.category, session.relatedAreas)
 
     const answersContext = (session.answers ?? []).length > 0
       ? '\n\nClarifying answers provided by homeowner:\n' +
@@ -120,7 +121,7 @@ async function generateAndSaveReport(
 
     if (session.flow === 'pre') {
       const rawBrief = await callClaude({
-        system:    buildDiagnosticBriefSystem(categoryLabel, session.preview?.severity),
+        system:    buildDiagnosticBriefSystem(categoryLabel, session.preview?.severity, relatedLabels),
         userText,
         schema:    diagnosticBriefSchema,
         model:     'sonnet',
@@ -134,6 +135,7 @@ async function generateAndSaveReport(
           categoryLabel,
           session.zip,
           session.preview ? { min: session.preview.costMin, max: session.preview.costMax } : undefined,
+          relatedLabels,
         ),
         userText,
         files,     // contractor quote document from sessionStorage — anchors fair price range

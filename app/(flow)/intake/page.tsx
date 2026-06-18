@@ -140,8 +140,8 @@ function FileUploadArea({
 export default function IntakePage() {
   const router = useRouter()
   const {
-    flow, category, description, zip,
-    setFlow, setCategory, setDescription, setZip, setQuestions,
+    flow, category, relatedAreas, description, zip,
+    setFlow, setCategory, toggleRelatedArea, setDescription, setZip, setQuestions,
   } = useSessionStore()
 
   const [files, setFiles]                     = useState<LocalFile[]>([])
@@ -420,7 +420,7 @@ export default function IntakePage() {
         {/* ── Category ─────────────────────────────────────────────────── */}
         <div className="mb-7">
           <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
-            Area of the home
+            Primary area of the home
           </p>
           <div className="flex flex-wrap gap-2">
             {CATEGORY_IDS.map((id) => {
@@ -443,6 +443,46 @@ export default function IntakePage() {
               )
             })}
           </div>
+
+          {/* Optional secondary areas — appear once a primary is chosen. The
+              report stays focused on the primary; these add cross-system context. */}
+          {category && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-1.5">
+                Also affects{' '}
+                <span className="font-normal normal-case tracking-normal">
+                  — optional, if the issue spans more than one area
+                </span>
+              </p>
+              <p className="text-[11px] text-brand-muted mb-3 leading-relaxed">
+                Your report stays focused on the primary area above. Add others only
+                if they&apos;re genuinely part of the same problem (e.g. a roof leak
+                affecting electrical).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORY_IDS.filter((id) => id !== category).map((id) => {
+                  const Icon = CATEGORY_ICONS[id]
+                  const selected = relatedAreas.includes(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleRelatedArea(id)}
+                      aria-pressed={selected}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-medium transition-all duration-150 ${
+                        selected
+                          ? 'border-brand-amber-deep bg-brand-amber-deep/10 text-brand-amber-deep'
+                          : 'border-brand-border bg-white text-brand-muted hover:border-brand-border-dark hover:text-brand-navy'
+                      }`}
+                    >
+                      <Icon size={14} className="flex-shrink-0" />
+                      {CATEGORY_LABELS[id]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Zip code ─────────────────────────────────────────────────── */}

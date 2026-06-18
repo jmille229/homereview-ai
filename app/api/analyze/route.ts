@@ -12,7 +12,7 @@ import {
   MAX_BODY_BYTES,
 } from '@/lib/validators'
 import type { AnalyzeResponse } from '@/lib/types'
-import { getCategoryLabel } from '@/lib/constants'
+import { getCategoryLabel, getRelatedAreaLabels, getRelatedAreaIds } from '@/lib/constants'
 import { parseJsonBody } from '@/lib/http'
 import { hasValidPreviewPass } from '@/lib/gate'
 import { consumeDailyBudget } from '@/lib/budget'
@@ -58,7 +58,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { flow, category, description, zip, files, answers } = data
+  const { flow, category, relatedAreas, description, zip, files, answers } = data
 
   // ── Reject files whose bytes don't match their declared type — keeps garbage
   //    out of the expensive vision call ──────────────────────────────────────
@@ -77,6 +77,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
   const categoryLabel = getCategoryLabel(category)
+  const relatedLabels = getRelatedAreaLabels(category, relatedAreas)
   const sanitizedDesc = sanitizeInput(description)
 
   // ── Build user text — include clarifying answers if provided ───────────────
@@ -95,6 +96,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const cacheKey = previewCacheKey(JSON.stringify({
     flow,
     category,
+    relatedAreas: [...relatedLabels].sort(),
     description: sanitizedDesc,
     zip,
     answers: answers.map(a => ({ q: a.question, a: sanitizeInput(a.answer, 500) })),
@@ -107,7 +109,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!preview) {
     try {
       preview = await callClaude({
-        system:    buildPreviewSystem(flow, categoryLabel),
+        system:    buildPreviewSystem(flow, categoryLabel, relatedLabels),
         userText,
         files,
         schema:    previewResultSchema,
@@ -135,6 +137,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       id:               sessionId,
       flow,
       category,
+      relatedAreas:     getRelatedAreaIds(category, relatedAreas),
       description:      sanitizedDesc,
       zip,
       answers:          answers ?? [],
