@@ -28,3 +28,24 @@ export function getCategoryLabel(category: CategoryId): string {
   if (!label) throw new Error(`Unknown category: ${category}`)
   return label
 }
+
+/**
+ * Maps the optional "also affects" related areas to their labels for prompt
+ * context. Skips the primary category (it's already the report's lens) and any
+ * unknown ids, so this is safe to call with raw stored values.
+ */
+export function getRelatedAreaIds(
+  primary: CategoryId,
+  relatedAreas: CategoryId[] | undefined,
+): CategoryId[] {
+  // De-dupe, drop the primary, drop unknowns — safe for raw stored/input values.
+  return Array.from(new Set(relatedAreas ?? []))
+    .filter((id) => id !== primary && !!CATEGORY_LABELS[id])
+}
+
+export function getRelatedAreaLabels(
+  primary: CategoryId,
+  relatedAreas: CategoryId[] | undefined,
+): string[] {
+  return getRelatedAreaIds(primary, relatedAreas).map((id) => CATEGORY_LABELS[id])
+}

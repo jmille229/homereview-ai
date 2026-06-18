@@ -8,10 +8,13 @@ import type { AiQuestion, CategoryId, Flow, PreviewResult, UserAnswer } from '@/
 
 interface SessionState {
   // ── Intake form ──
-  flow:        Flow | null
-  category:    CategoryId | null
-  description: string
-  zip:         string
+  flow:         Flow | null
+  category:     CategoryId | null
+  // Optional secondary areas the issue "also affects." The primary `category`
+  // stays the report's lens; these are passed to the AI as context only.
+  relatedAreas: CategoryId[]
+  description:  string
+  zip:          string
 
   // ── Clarifying questions ──
   questions: AiQuestion[]
@@ -28,6 +31,7 @@ interface SessionState {
   // ── Actions ──
   setFlow:           (flow: Flow) => void
   setCategory:       (category: CategoryId) => void
+  toggleRelatedArea: (area: CategoryId) => void
   setDescription:    (description: string) => void
   setZip:            (zip: string) => void
   setQuestions:      (questions: AiQuestion[]) => void
@@ -39,10 +43,11 @@ interface SessionState {
 }
 
 const initialState = {
-  flow:        null,
-  category:    null,
-  description: '',
-  zip:         '',
+  flow:         null,
+  category:     null,
+  relatedAreas: [] as CategoryId[],
+  description:  '',
+  zip:          '',
   questions:   [],
   answers:     [],
   sessionId:   null,
@@ -58,7 +63,15 @@ export const useSessionStore = create<SessionState>()(
       ...initialState,
 
       setFlow:        (flow)        => set({ flow }),
-      setCategory:    (category)    => set({ category }),
+      // Choosing a primary drops it from the related set (can't be both).
+      setCategory:    (category)    =>
+        set((s) => ({ category, relatedAreas: s.relatedAreas.filter((a) => a !== category) })),
+      toggleRelatedArea: (area)     =>
+        set((s) => ({
+          relatedAreas: s.relatedAreas.includes(area)
+            ? s.relatedAreas.filter((a) => a !== area)
+            : [...s.relatedAreas, area],
+        })),
       setDescription: (description) => set({ description }),
       setZip:         (zip)         => set({ zip }),
       setQuestions:   (questions)   => set({ questions }),
@@ -75,10 +88,11 @@ export const useSessionStore = create<SessionState>()(
         typeof window !== 'undefined' ? sessionStorage : localStorage,
       ),
       partialize: (state) => ({
-        flow:        state.flow,
-        category:    state.category,
-        description: state.description,
-        zip:         state.zip,
+        flow:         state.flow,
+        category:     state.category,
+        relatedAreas: state.relatedAreas,
+        description:  state.description,
+        zip:          state.zip,
         questions:   state.questions,
         answers:     state.answers,
         sessionId:   state.sessionId,

@@ -21,7 +21,7 @@ const PROCESSING_MESSAGES = [
 export default function QuestionsPage() {
   const router = useRouter()
   const {
-    flow, category, description, zip,
+    flow, category, relatedAreas, description, zip,
     questions, answers, preview, setQuestions, setAnswers, setSessionId, setPreview,
     setSeverityNotice,
   } = useSessionStore()
@@ -56,7 +56,7 @@ export default function QuestionsPage() {
       const res = await fetch('/api/analyze', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ flow, category, description, zip, files, answers }),
+        body:    JSON.stringify({ flow, category, relatedAreas, description, zip, files, answers }),
       })
       const json: AnalyzeResponse | { error: string; code?: string } = await res.json()
       if (res.status === 403 && 'code' in json && json.code === 'gate') {
@@ -89,7 +89,7 @@ export default function QuestionsPage() {
     } finally {
       clearInterval(interval)
     }
-  }, [flow, category, description, zip, preview, setAnswers, setSessionId, setPreview, setSeverityNotice, router])
+  }, [flow, category, relatedAreas, description, zip, preview, setAnswers, setSessionId, setPreview, setSeverityNotice, router])
 
   useEffect(() => {
     if (!flow || !category || !description) return
@@ -105,7 +105,7 @@ export default function QuestionsPage() {
         const res = await fetch('/api/questions', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ flow, category, description, files }),
+          body:    JSON.stringify({ flow, category, relatedAreas, description, files }),
         })
         const json: QuestionsResponse | { error: string; code?: string } = await res.json()
         if (cancelled) return
@@ -126,7 +126,7 @@ export default function QuestionsPage() {
     }
     fetchQuestions()
     return () => { cancelled = true }
-  }, [flow, category, description, questions.length, generatePreview, setQuestions, router])
+  }, [flow, category, relatedAreas, description, questions.length, generatePreview, setQuestions, router])
 
   const handleSubmit = () => {
     const answers: UserAnswer[] = (questions as AiQuestion[]).map(q => ({
