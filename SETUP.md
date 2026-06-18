@@ -155,9 +155,16 @@ capability cookie above remains a useful second factor for shareable links.
 ## File Upload Limits
 
 Current limits (enforced client + server):
-- Max file size: **2MB per file**
+- Max file size: **3MB per file**
 - Max files: **3 per submission**
+- Max **combined** size: **3MB total** across all files
 - Accepted types: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`
 
-These limits are set to stay within Vercel's 4.5MB serverless function payload limit.
-To increase limits, add S3 direct upload (see S3 upgrade path in engineering review).
+Files are base64-encoded in the JSON request body, which inflates them ~37%, and
+Vercel Serverless Functions cap the request body at ~4.5 MB (not configurable).
+The **3MB combined** limit keeps the worst-case payload (~4.0 MB base64 + JSON)
+safely under that cap; `MAX_BODY_BYTES` (4.4 MB) returns a clean 413 first.
+
+To go meaningfully larger (5MB+ scanned quotes), switch to **direct-to-storage
+upload** (Vercel Blob or S3 presigned URL) so files bypass the request body —
+then limits become Anthropic's (~5MB/image, 32MB/100-page PDF) and cost/latency.

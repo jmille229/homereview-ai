@@ -10,6 +10,7 @@ import {
   CATEGORY_IDS,
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
+  MAX_TOTAL_UPLOAD_BYTES,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
 import { CATEGORY_LABELS } from '@/lib/constants'
@@ -101,7 +102,7 @@ function FileUploadArea({
             </>
           )}
           <p className="text-[11px] text-brand-muted mt-1">
-            JPEG · PNG · WebP · PDF · Max 2MB each
+            JPEG · PNG · WebP · PDF · Max 3MB each · 3MB total
           </p>
         </div>
         <input
@@ -180,7 +181,7 @@ export default function IntakePage() {
         return
       }
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        setFileError(`"${file.name}" exceeds the 2MB limit.`)
+        setFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
         return
       }
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -190,6 +191,11 @@ export default function IntakePage() {
         reader.readAsDataURL(file)
       })
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
+    }
+    const totalBytes = [...files, ...validated].reduce((sum, f) => sum + f.size, 0)
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB. Try removing a file or using smaller scans.`)
+      return
     }
     setFiles(prev => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
     if (validated.length > 0) setShowQuoteWarning(false)

@@ -21,9 +21,14 @@ export const ALLOWED_MIME_TYPES: AllowedMimeType[] = [
   'application/pdf',
 ]
 
-export const MAX_FILE_SIZE_BYTES    = 2 * 1024 * 1024
+export const MAX_FILE_SIZE_BYTES    = 3 * 1024 * 1024
 export const MAX_FILES_PER_REQUEST  = 3
-export const MAX_BODY_BYTES         = 9 * 1024 * 1024
+/** Combined size of all uploaded files in a request. Keeps the base64 payload
+ *  comfortably under Vercel's ~4.5 MB serverless request-body cap. */
+export const MAX_TOTAL_UPLOAD_BYTES = 3 * 1024 * 1024
+/** Hard cap on the actual request body (base64 inflates files ~37%). Sits just
+ *  under Vercel's ~4.5 MB platform limit so we return a clean 413 first. */
+export const MAX_BODY_BYTES         = 4_400_000
 /** Hard cap for request bodies that never legitimately carry files. */
 export const MAX_JSON_BYTES         = 64 * 1024
 export const MAX_FOLLOWUP_QUESTIONS = 2
@@ -49,6 +54,19 @@ const uploadedFileSchema = z
     { message: 'File data does not match declared size.' },
   )
 
+/**
+ * Files array shared by every file-bearing request: caps the count, each file's
+ * size (via uploadedFileSchema), AND the combined size — so the base64 payload
+ * stays under the platform request-body limit.
+ */
+const filesArraySchema = z
+  .array(uploadedFileSchema)
+  .max(MAX_FILES_PER_REQUEST)
+  .refine(
+    (files) => files.reduce((sum, f) => sum + f.size, 0) <= MAX_TOTAL_UPLOAD_BYTES,
+    { message: `Combined file size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB.` },
+  )
+
 const userAnswerSchema = z.object({
   questionId: z.string().min(1).max(50),
   question:   z.string().min(1).max(500),
@@ -64,7 +82,7 @@ export const questionsRequestSchema = z.object({
   // For post-quote flow, the uploaded contractor quote document is included
   // so Claude can read the quote directly before generating clarifying questions.
   // This prevents asking the homeowner to describe what the quote already states.
-  files:       z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST).optional(),
+  files:       filesArraySchema.optional(),
 })
 
 export const analyzeRequestSchema = z.object({
@@ -78,7 +96,7 @@ export const analyzeRequestSchema = z.object({
     .string()
     .regex(/^\d{5}$/, 'Please enter a valid 5-digit US zip code.')
     .or(z.literal('')),
-  files:   z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
+  files:   filesArraySchema,
   answers: z.array(userAnswerSchema).max(4),
 })
 
@@ -110,7 +128,7 @@ export const generateReportRequestSchema = z.object({
   // the uploaded contractor quote document is stored in sessionStorage on the
   // client and re-sent at report generation time. Not sent for pre-quote flow.
   // Optional on retry too, since sessionStorage may have been cleared.
-  files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST).optional(),
+  files: filesArraySchema.optional(),
 })
 
 export const updateReportRequestSchema = z.object({
@@ -118,7 +136,7 @@ export const updateReportRequestSchema = z.object({
   updateType: z.enum([
     'new_quote', 'revised_quote', 'contract', 'invoice', 'note', 'photo',
   ] as [UpdateType, ...UpdateType[]]),
-  files: z.array(uploadedFileSchema).max(MAX_FILES_PER_REQUEST),
+  files: filesArraySchema,
   note:  z.string().max(2000).optional(),
 })
 
