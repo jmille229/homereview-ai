@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { z, ZodError } from 'zod'
 import { waitUntil } from '@vercel/functions'
@@ -9,6 +10,7 @@ import {
   buildDiagnosticBriefSystem,
   buildQuoteShieldSystem,
   buildUpdateSystem,
+  buildQuoteComparisonSystem,
   sanitizeInput,
 } from '@/lib/prompts'
 import {
@@ -16,6 +18,7 @@ import {
   quoteShieldSchema,
   generateReportRequestSchema,
   updateReportRequestSchema,
+  quoteComparisonResultSchema,
   MAX_BODY_BYTES,
 } from '@/lib/validators'
 import { parseJsonBody } from '@/lib/http'
@@ -31,13 +34,18 @@ import {
 } from '@/lib/access'
 import { sendReportReadyEmail, sendReportFailedEmail, sendOpsAlert } from '@/lib/email'
 import type {
+  AnalyzedQuote,
   DiagnosticBriefReport,
   GenerateReportResponse,
+  QuoteComparison,
   QuoteShieldReport,
   StoredSession,
   UpdateReportResponse,
   UploadedFile,
 } from '@/lib/types'
+
+/** Max contractor quotes that can be compared at once (original + 2 added). */
+const MAX_QUOTES = 3
 
 // ─── Schema repair ────────────────────────────────────────────────────────────
 
@@ -76,6 +84,86 @@ function repairQuoteShield(report: Omit<QuoteShieldReport, 'updates'>): QuoteShi
   }
 }
 
+
+// ─── Multi-quote comparison ───────────────────────────────────────────────────
+
+/** Normalize a nullish AI string/number into an optional value. */
+function opt<T>(v: T | null | undefined): T | undefined {
+  return v === null || v === undefined ? undefined : v
+}
+
+/**
+ * Runs the cross-quote comparison: analyzes the newly uploaded quote against the
+ * original report and any quotes already on file, then returns the full
+ * normalized set (stable ids/facts preserved) plus the best-value recommendation.
+ */
+async function runQuoteComparison(
+  session: StoredSession,
+  newFiles: UploadedFile[],
+): Promise<{ quotes: AnalyzedQuote[]; comparison: QuoteComparison }> {
+  const categoryLabel = getCategoryLabel(session.category)
+  const report        = session.report as QuoteShieldReport
+  const existing      = session.quotes ?? []
+  // Quotes already analyzed beyond the original (the AI re-derives the original
+  // from the report itself, so it is not passed in this list).
+  const priorAdded    = existing.filter((q) => !q.isOriginal)
+
+  const result = await callClaude({
+    system: buildQuoteComparisonSystem(
+      categoryLabel,
+      session.zip,
+      report,
+      priorAdded,
+      session.description,
+    ),
+    userText:  'Analyze the attached new contractor quote and compare it against the quotes described above.',
+    files:     newFiles,
+    schema:    quoteComparisonResultSchema,
+    model:     'sonnet',
+    maxTokens: 3500,
+    retries:   0,
+  })
+
+  // Map AI output to stored AnalyzedQuote[], preserving ids/addedAt for quotes
+  // already on file (matched by position — the prompt fixes the order).
+  const now = new Date().toISOString()
+  const quotes: AnalyzedQuote[] = result.quotes.map((q, i) => {
+    const prev = existing[i]
+    return {
+      id:               prev?.id ?? randomUUID(),
+      label:            q.label,
+      contractorName:   opt(q.contractorName),
+      quotedTotal:      opt(q.quotedTotal),
+      adjustedTotal:    opt(q.adjustedTotal),
+      pricingVerdict:   q.pricingVerdict,
+      fairMin:          q.fairMin,
+      fairMax:          q.fairMax,
+      scopeVerdict:     q.scopeVerdict,
+      diagnosisVerdict: q.diagnosisVerdict,
+      includedItems:    q.includedItems,
+      missingItems:     q.missingItems,
+      upsells:          q.upsells,
+      redFlags:         q.redFlags,
+      greenFlags:       q.greenFlags,
+      warranty:         opt(q.warranty),
+      timeline:         opt(q.timeline),
+      summary:          q.summary,
+      isOriginal:       i === 0,
+      addedAt:          prev?.addedAt ?? now,
+    }
+  })
+
+  const recIdx = Math.min(result.recommendedIndex, quotes.length - 1)
+  const comparison: QuoteComparison = {
+    recommendedQuoteId:   quotes[recIdx].id,
+    recommendationReason: result.recommendationReason,
+    negotiationLeverage:  result.negotiationLeverage,
+    keyDifferences:       result.keyDifferences,
+    generatedAt:          now,
+  }
+
+  return { quotes, comparison }
+}
 
 export const runtime    = 'nodejs'
 export const maxDuration = 120  // 120s gives Sonnet full generation time + cleanup margin on cold starts
@@ -450,6 +538,74 @@ export async function PATCH(req: Request): Promise<NextResponse> {
   const existingReport = session.report as QuoteShieldReport
   const categoryLabel  = getCategoryLabel(session.category)
   const noteText       = data.note ? sanitizeInput(data.note) : ''
+
+  // ── New quote → side-by-side comparison (does NOT overwrite the report) ─────
+  if (data.updateType === 'new_quote') {
+    if (data.files.length === 0) {
+      return NextResponse.json(
+        { error: 'Please upload the new quote document so we can compare it.' },
+        { status: 400 },
+      )
+    }
+    // Original counts as one quote even before the comparison set is created.
+    const currentCount = session.quotes?.length ?? 1
+    if (currentCount >= MAX_QUOTES) {
+      return NextResponse.json(
+        { error: `You can compare up to ${MAX_QUOTES} quotes. Remove one to add another.` },
+        { status: 409 },
+      )
+    }
+
+    let comparisonOut: { quotes: AnalyzedQuote[]; comparison: QuoteComparison }
+    try {
+      comparisonOut = await runQuoteComparison(session, data.files)
+    } catch (err) {
+      console.error('[report/update] Quote comparison failed:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return NextResponse.json({ error: 'We couldn\'t analyze that quote. Please try again.' }, { status: 502 })
+    }
+
+    const recommended = comparisonOut.quotes.find((q) => q.id === comparisonOut.comparison.recommendedQuoteId)
+    const updatedReport: QuoteShieldReport = {
+      ...existingReport,
+      updates: [
+        ...(existingReport.updates ?? []),
+        {
+          timestamp:       new Date().toISOString(),
+          updateType:      'new_quote',
+          changedSections: ['Quote comparison'],
+          summary:         `Added a quote — now comparing ${comparisonOut.quotes.length}. Best value: ${recommended?.label ?? 'see comparison'}.`,
+        },
+      ],
+    }
+
+    try {
+      await updateSession(data.sessionId, {
+        report:     updatedReport,
+        quotes:     comparisonOut.quotes,
+        comparison: comparisonOut.comparison,
+      })
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('LOCK_CONTENTION')) {
+        return NextResponse.json(
+          { error: 'Another update is in progress. Please try again in a moment.' },
+          { status: 409 },
+        )
+      }
+      console.error('[report/update] Redis update failed (comparison):', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return NextResponse.json({ error: 'Failed to save the comparison. Please try again.' }, { status: 503 })
+    }
+
+    const res: UpdateReportResponse = {
+      report:     updatedReport,
+      quotes:     comparisonOut.quotes,
+      comparison: comparisonOut.comparison,
+    }
+    return NextResponse.json(res)
+  }
 
   const updateResponseSchema = z.object({
     changedSections: z.array(z.string()),

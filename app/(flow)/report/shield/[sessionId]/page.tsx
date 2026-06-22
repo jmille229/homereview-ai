@@ -62,6 +62,8 @@ export default async function ShieldReportPage({ params }: Props) {
       reportFailed={reportFailed}
       reportError={session.reportError}
       severity={session.preview?.severity}
+      quotes={session.quotes}
+      comparison={session.comparison}
       shareUrl={shareUrl}
     />
   )
