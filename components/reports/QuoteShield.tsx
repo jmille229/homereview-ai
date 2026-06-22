@@ -6,10 +6,13 @@ import { ChatInterface } from '@/components/ui/ChatInterface'
 import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
+import { QuoteComparison } from './QuoteComparison'
 import type { Severity } from '@/lib/types'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST, MAX_TOTAL_UPLOAD_BYTES } from '@/lib/validators'
 import type {
+  AnalyzedQuote,
   ChatMessage,
+  QuoteComparison as QuoteComparisonData,
   QuoteShieldReport,
   UpdateReportResponse,
   UploadedFile,
@@ -32,6 +35,9 @@ interface Props {
   reportError?: string
   /** Carried from the preview (single source of truth for severity). */
   severity?: string
+  /** Multi-quote comparison set (present once ≥2 quotes have been analyzed). */
+  quotes?: AnalyzedQuote[]
+  comparison?: QuoteComparisonData
   /** Read-only shared view: hides chat, uploads, tabs, and recovery. */
   readOnly?: boolean
   /** When present (owner view), shows a Share button that copies this link. */
@@ -40,7 +46,7 @@ interface Props {
 
 // ─── Sub-types ────────────────────────────────────────────────────────────────
 
-type Tab = 'report' | 'activity'
+type Tab = 'report' | 'compare' | 'activity'
 
 type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
 
@@ -127,10 +133,14 @@ export function QuoteShield({
   reportFailed,
   reportError,
   severity,
+  quotes: initialQuotes,
+  comparison: initialComparison,
   readOnly = false,
   shareUrl,
 }: Props) {
   const [report, setReport] = useState<QuoteShieldReport | undefined>(initialReport)
+  const [quotes, setQuotes] = useState<AnalyzedQuote[] | undefined>(initialQuotes)
+  const [comparison, setComparison] = useState<QuoteComparisonData | undefined>(initialComparison)
   const [tab, setTab] = useState<Tab>('report')
   const [copied, setCopied] = useState(false)
   const [showUpdate, setShowUpdate] = useState(false)
@@ -212,11 +222,19 @@ export function QuoteShield({
         return
       }
 
-      setReport((json as UpdateReportResponse).report)
+      const resp = json as UpdateReportResponse
+      setReport(resp.report)
       setShowUpdate(false)
       setFiles([])
       setNote('')
-      setTab('activity')
+      // A new quote returns a comparison — surface it directly.
+      if (resp.quotes && resp.comparison) {
+        setQuotes(resp.quotes)
+        setComparison(resp.comparison)
+        setTab('compare')
+      } else {
+        setTab('activity')
+      }
     } catch {
       setUpdateError('Network error. Please try again.')
     } finally {
@@ -250,8 +268,10 @@ export function QuoteShield({
 
   // ── Tab buttons ──────────────────────────────────────────────────────────
 
+  const hasComparison = !!comparison && !!quotes && quotes.length >= 2
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'report', label: 'Report' },
+    ...(hasComparison ? [{ id: 'compare' as Tab, label: `Compare (${quotes!.length})` }] : []),
     { id: 'activity', label: `Activity (${report?.updates?.length ?? 0})` },
   ]
 
@@ -331,7 +351,9 @@ export function QuoteShield({
           <div className="card bg-blue-50 border-blue-200 mb-4 print:hidden">
             <p className="text-sm font-semibold text-brand-navy mb-1">Update your report</p>
             <p className="text-xs text-brand-muted mb-4">
-              Each upload triggers a fresh AI analysis. Affected sections are updated and logged in Activity.
+              {updateType === 'new_quote'
+                ? 'Upload another contractor\'s quote for the same job and we\'ll compare them side-by-side — adjusted prices, scope gaps, and a best-value pick.'
+                : 'Each upload triggers a fresh AI analysis. Affected sections are updated and logged in Activity.'}
             </p>
 
             {/* Update type */}
@@ -420,13 +442,21 @@ export function QuoteShield({
             <div className="flex gap-2">
               <button
                 onClick={handleUpdate}
-                disabled={updating || (files.length === 0 && !note.trim())}
+                disabled={
+                  updating ||
+                  (updateType === 'new_quote'
+                    ? files.length === 0
+                    : files.length === 0 && !note.trim())
+                }
                 className="flex-1 btn-primary flex items-center justify-center gap-2 py-2.5"
               >
                 {updating ? (
-                  <><LoadingSpinner size={14} color="white" /><span>Updating report…</span></>
+                  <>
+                    <LoadingSpinner size={14} color="white" />
+                    <span>{updateType === 'new_quote' ? 'Comparing quotes…' : 'Updating report…'}</span>
+                  </>
                 ) : (
-                  'Update my report'
+                  updateType === 'new_quote' ? 'Compare this quote' : 'Update my report'
                 )}
               </button>
               <button
@@ -611,6 +641,11 @@ export function QuoteShield({
               </p>
             </div>
           </div>
+        )}
+
+        {/* ── COMPARE TAB ────────────────────────────────────────────────────── */}
+        {!reportFailed && tab === 'compare' && hasComparison && (
+          <QuoteComparison quotes={quotes!} comparison={comparison!} />
         )}
 
         {/* ── ACTIVITY TAB ───────────────────────────────────────────────────── */}

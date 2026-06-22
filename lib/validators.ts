@@ -224,6 +224,46 @@ export const diagnosticBriefSchema = z.object({
   insistOnWriting:   z.array(z.string().min(5)).min(1),
 })
 
+// ─── Multi-quote comparison (AI output) ──────────────────────────────────────
+//
+// The AI returns the FULL normalized set of quotes each time a new one is added,
+// because the apples-to-apples adjustedTotal is relative to the whole set. The
+// server preserves stable ids and factual fields for quotes already on file.
+
+const analyzedQuoteAiSchema = z.object({
+  label:           z.string().min(1).max(80),
+  contractorName:  z.string().max(120).nullish(),
+  quotedTotal:     z.number().int().nonnegative().nullish(),
+  adjustedTotal:   z.number().int().nonnegative().nullish(),
+  pricingVerdict:  z.enum(['Fair', 'High End', 'Inflated'] as [PricingVerdict, PricingVerdict, PricingVerdict]),
+  fairMin:         z.number().int().nonnegative(),
+  fairMax:         z.number().int().nonnegative(),
+  scopeVerdict:    z.enum(['Matches Problem', 'Partial Match', 'Scope Mismatch'] as [ScopeVerdict, ScopeVerdict, ScopeVerdict]),
+  diagnosisVerdict:z.enum(['Sound', 'Questionable', 'Unsupported'] as [DiagnosisVerdict, DiagnosisVerdict, DiagnosisVerdict]),
+  includedItems:   z.array(z.string().min(1)),
+  missingItems:    z.array(z.string().min(1)),
+  upsells:         z.array(z.object({
+    item:   z.string().min(1),
+    amount: z.number().int().min(0),
+    reason: z.string().min(1),
+  })),
+  redFlags:        z.array(z.string().min(1)),
+  greenFlags:      z.array(z.string().min(1)),
+  warranty:        z.string().max(400).nullish(),
+  timeline:        z.string().max(400).nullish(),
+  summary:         z.string().min(10),
+})
+
+export const quoteComparisonResultSchema = z.object({
+  // 2-3 quotes: the original plus up to two added.
+  quotes:               z.array(analyzedQuoteAiSchema).min(2).max(3),
+  // Index into `quotes` of the recommended best-value option.
+  recommendedIndex:     z.number().int().min(0).max(2),
+  recommendationReason: z.string().min(10),
+  negotiationLeverage:  z.array(z.string().min(5)),
+  keyDifferences:       z.array(z.string().min(5)),
+})
+
 export const quoteShieldSchema = z.object({
   diagnosisVerdict:    z.enum(['Sound', 'Questionable', 'Unsupported'] as [DiagnosisVerdict, DiagnosisVerdict, DiagnosisVerdict]),
   diagnosisAnalysis:   z.string().min(20),

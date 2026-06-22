@@ -108,6 +108,55 @@ export interface ReportUpdate {
   summary: string
 }
 
+// ─── Multi-quote comparison ───────────────────────────────────────────────────
+//
+// When a Quote Shield buyer uploads additional contractor quotes for the SAME
+// job, each is analyzed into a stable structured record (facts that don't change
+// once captured) plus relative fields (adjustedTotal) that are recomputed across
+// the whole set each time a quote is added — apples-to-apples normalization.
+
+export interface AnalyzedQuoteUpsell {
+  item: string
+  amount: number
+  reason: string
+}
+
+export interface AnalyzedQuote {
+  id: string
+  /** Display label — contractor name if extractable, else "Quote N". */
+  label: string
+  contractorName?: string
+  /** Bottom-line quoted price (integer USD), if determinable from the document. */
+  quotedTotal?: number
+  /** Scope-normalized price so quotes can be compared apples-to-apples. */
+  adjustedTotal?: number
+  pricingVerdict: import('./enums').PricingVerdict
+  fairMin: number
+  fairMax: number
+  scopeVerdict: import('./enums').ScopeVerdict
+  diagnosisVerdict: import('./enums').DiagnosisVerdict
+  includedItems: string[]
+  missingItems: string[]
+  upsells: AnalyzedQuoteUpsell[]
+  redFlags: string[]
+  greenFlags: string[]
+  warranty?: string
+  timeline?: string
+  summary: string
+  /** True for the original purchased quote (Quote 1). */
+  isOriginal: boolean
+  addedAt: string
+}
+
+export interface QuoteComparison {
+  /** id of the recommended best-value quote. */
+  recommendedQuoteId: string
+  recommendationReason: string
+  negotiationLeverage: string[]
+  keyDifferences: string[]
+  generatedAt: string
+}
+
 // ─── Session (stored in Redis) ────────────────────────────────────────────────
 
 /**
@@ -139,6 +188,10 @@ export interface StoredSession {
   reportStatus?: import('./enums').ReportStatus
   report?: DiagnosticBriefReport | QuoteShieldReport
   reportError?: string
+  /** Quote Shield only — additional analyzed quotes for side-by-side comparison.
+   *  Index 0 is the original purchased quote. Present once ≥2 quotes exist. */
+  quotes?: AnalyzedQuote[]
+  comparison?: QuoteComparison
   followupCount: number
   followupMessages: FollowupMessage[]
   chatMessages: ChatMessage[]
@@ -221,6 +274,9 @@ export interface UpdateReportRequest {
 
 export interface UpdateReportResponse {
   report: QuoteShieldReport
+  /** Present when the update was a new quote that triggered a comparison. */
+  quotes?: AnalyzedQuote[]
+  comparison?: QuoteComparison
 }
 
 export interface CheckoutRequest {

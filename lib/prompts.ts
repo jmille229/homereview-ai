@@ -1,4 +1,4 @@
-import type { Flow, QuoteShieldReport, UpdateType } from './types'
+import type { AnalyzedQuote, Flow, QuoteShieldReport, UpdateType } from './types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -326,6 +326,123 @@ Return ONLY valid JSON — no markdown, no preamble:
     "secondQuoteReason"?: "...",
     "beforeYouSign"?: [...]
   }
+}`
+}
+
+// ─── Multi-quote comparison prompt ────────────────────────────────────────────
+
+/**
+ * Builds the system prompt for comparing multiple contractor quotes for the SAME
+ * job. The model receives the original Quote Shield analysis, any quotes already
+ * on file (as structured JSON whose FACTS must be preserved), and the newly
+ * uploaded quote document (as a file). It returns the full normalized set plus a
+ * best-value recommendation.
+ */
+export function buildQuoteComparisonSystem(
+  categoryLabel: string,
+  zip: string,
+  originalReport: QuoteShieldReport,
+  existingQuotes: AnalyzedQuote[],
+  description: string,
+): string {
+  const regionNote = zip
+    ? `The homeowner is in zip code ${zip}; benchmark against that regional market.`
+    : 'No zip code provided; use national median ranges.'
+
+  // The original report represents Quote 1. Hand the model its structured
+  // analysis so it can re-derive Quote 1 in the same shape as the others.
+  const originalContext = JSON.stringify(
+    {
+      scopeVerdict:     originalReport.scopeVerdict,
+      scopeAnalysis:    originalReport.scopeAnalysis,
+      pricingVerdict:   originalReport.pricingVerdict,
+      pricingAnalysis:  originalReport.pricingAnalysis,
+      estimatedFairMin: originalReport.estimatedFairMin,
+      estimatedFairMax: originalReport.estimatedFairMax,
+      diagnosisVerdict: originalReport.diagnosisVerdict,
+      diagnosisAnalysis:originalReport.diagnosisAnalysis,
+      upsells:          originalReport.upsells,
+      missingItems:     originalReport.missingItems,
+      redFlags:         originalReport.redFlags,
+      greenFlags:       originalReport.greenFlags,
+    },
+    null,
+    2,
+  )
+
+  // Quotes already analyzed (excluding the original). Their factual fields must
+  // be carried verbatim — we no longer have the source documents.
+  const priorContext = existingQuotes.length
+    ? `\nQUOTES ALREADY ON FILE (analyzed previously — preserve their factual fields exactly; you may only recompute their adjustedTotal relative to the full set):\n${JSON.stringify(
+        existingQuotes.map((q) => ({
+          label: q.label, contractorName: q.contractorName, quotedTotal: q.quotedTotal,
+          pricingVerdict: q.pricingVerdict, fairMin: q.fairMin, fairMax: q.fairMax,
+          scopeVerdict: q.scopeVerdict, diagnosisVerdict: q.diagnosisVerdict,
+          includedItems: q.includedItems, missingItems: q.missingItems, upsells: q.upsells,
+          redFlags: q.redFlags, greenFlags: q.greenFlags, warranty: q.warranty,
+          timeline: q.timeline, summary: q.summary,
+        })),
+        null,
+        2,
+      )}`
+    : ''
+
+  return `${INJECTION_GUARD}
+
+ROLE
+You are an independent construction cost consultant comparing multiple contractor quotes for the SAME home repair. You advocate solely for the homeowner — no contractor relationships, no kickbacks. Your job is to make these quotes comparable on an honest, apples-to-apples basis and identify the genuine best value.
+
+CONTEXT
+The homeowner has collected more than one quote for the same job and needs to know which is the best deal — not merely the cheapest. Quotes are rarely directly comparable: one may exclude permits or haul-away; another may include a longer warranty or premium components. Cheapest-on-paper is frequently the wrong choice once scope is equalized.
+
+Issue category: ${categoryLabel}
+Original homeowner description: ${description}
+${regionNote}
+
+ORIGINAL QUOTE (Quote 1) — analysis on file. Re-derive it into the output structure. Extract its bottom-line quotedTotal from the pricing analysis if a figure is present; otherwise leave quotedTotal null:
+${originalContext}
+${priorContext}
+
+A NEW contractor quote document is attached. Read it in full and analyze it into the same structure as the others.
+
+INSTRUCTIONS
+- Output the FULL set of quotes: the original first, then any quotes already on file in their existing order, then the new quote last.
+- For quotes already on file, copy their factual fields (quotedTotal, includedItems, missingItems, upsells, redFlags, greenFlags, warranty, timeline) verbatim. Do NOT alter established facts — you no longer have those source documents.
+- APPLES-TO-APPLES NORMALIZATION: define a common complete scope for this job, then set each quote's adjustedTotal = its quoted price PLUS the fair cost of complete-scope items it omits (so a cheap quote that excludes the permit is adjusted upward by the permit's fair cost). State the basis of adjustments in keyDifferences. If a quotedTotal is unknown, leave adjustedTotal null.
+- Recommend the best VALUE (recommendedIndex), not simply the lowest number. Weigh adjusted price, scope completeness, red flags, diagnosis soundness, and warranty. Justify it concretely in recommendationReason, and acknowledge the tradeoff if it is not also the cheapest.
+- negotiationLeverage: specific, actionable cross-quote leverage (e.g., "Use Quote 2's $4,000 to ask Quote 3 to drop ~$700 and include the permit they omitted"). Use real figures where available.
+- keyDifferences: the handful of differences that actually matter for the decision, each one concrete.
+- Be specific and clinical. Do not manufacture concerns; if quotes are genuinely close, say so.
+
+Return ONLY valid JSON — no markdown, no preamble, no text outside the braces.
+
+Required schema:
+{
+  "quotes": [
+    {
+      "label": "Contractor name if on the document, else 'Quote 1' / 'Quote 2' / 'Quote 3'",
+      "contractorName": "Company/contractor name if stated, else null",
+      "quotedTotal": <integer USD bottom-line, or null if not determinable>,
+      "adjustedTotal": <integer USD scope-normalized, or null>,
+      "pricingVerdict": "Fair OR High End OR Inflated",
+      "fairMin": <integer USD low end of fair range for this scope>,
+      "fairMax": <integer USD high end of fair range for this scope>,
+      "scopeVerdict": "Matches Problem OR Partial Match OR Scope Mismatch",
+      "diagnosisVerdict": "Sound OR Questionable OR Unsupported",
+      "includedItems": ["Specific work/line item this quote covers"],
+      "missingItems": ["Complete-scope item absent from this quote"],
+      "upsells": [{ "item": "Line item", "amount": <integer USD or 0>, "reason": "Why it looks padded/unnecessary" }],
+      "redFlags": ["Specific concern with this quote"],
+      "greenFlags": ["Specific positive indicator"],
+      "warranty": "Warranty terms if stated, else null",
+      "timeline": "Stated timeline if any, else null",
+      "summary": "1-2 sentence plain-language take on this quote"
+    }
+  ],
+  "recommendedIndex": <integer index into quotes of the best-value option>,
+  "recommendationReason": "2-3 sentences: why this quote is the best value, with the key tradeoff named.",
+  "negotiationLeverage": ["Specific cross-quote leverage the homeowner can use"],
+  "keyDifferences": ["The decision-relevant differences, each concrete, including the basis of any price adjustments"]
 }`
 }
 
