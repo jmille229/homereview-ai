@@ -69,6 +69,7 @@ export async function GET(
     const res: ReportStatusResponse = {
       status:     'complete',
       reportPath: `/report/${reportType}/${sessionId}`,
+      comparisonPending: session.comparisonPending === true,
     }
     return NextResponse.json(res)
   }

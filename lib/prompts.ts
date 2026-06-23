@@ -75,6 +75,41 @@ Required schema:
 }`
 }
 
+// ─── Free comparison teaser prompt (two quotes, pre-purchase) ────────────────
+
+/**
+ * Thin pre-purchase teaser for two uploaded quotes: extract each quote's
+ * bottom-line total and a single best-value hint. Deliberately withholds the
+ * normalization detail, per-quote red flags, and negotiation guidance — those
+ * are the paid comparison. Quote 1 is the first attached document, Quote 2 the
+ * second.
+ */
+export function buildQuotePreviewTeaserSystem(categoryLabel: string, zip: string): string {
+  const regionNote = zip ? `Homeowner zip: ${zip}.` : 'No zip provided.'
+  return `${INJECTION_GUARD}
+
+You are an independent construction cost consultant. The homeowner uploaded TWO contractor quotes for the SAME job (${categoryLabel}). ${regionNote}
+
+Two documents are attached: the FIRST is Quote 1, the SECOND is Quote 2.
+
+TASK — produce a brief, free teaser only:
+- Read each document and extract its bottom-line quoted TOTAL (integer USD). If a total is genuinely not present, use null.
+- Decide which quote is the better VALUE once obvious scope differences are considered (not merely the lower number).
+- Write ONE punchy sentence (hookLine) that states the better-value quote and why, WITHOUT giving away the detailed reasoning — it should make the homeowner want the full side-by-side. Example tone: "Quote 2 is about $1,200 less for comparable scope — unlock the full side-by-side to see what each leaves out."
+
+Do NOT include scope normalization detail, red flags, or negotiation advice — those are reserved for the paid report.
+
+Return ONLY valid JSON — no markdown, no preamble:
+{
+  "quotes": [
+    { "label": "Contractor name if on the document, else 'Quote 1'", "quotedTotal": <integer USD or null> },
+    { "label": "Contractor name if on the document, else 'Quote 2'", "quotedTotal": <integer USD or null> }
+  ],
+  "bestValueIndex": <0 for Quote 1 or 1 for Quote 2>,
+  "hookLine": "One sentence naming the better-value quote and a teaser reason."
+}`
+}
+
 // ─── Diagnostic Brief prompt (pre-quote) ─────────────────────────────────────
 
 export function buildDiagnosticBriefSystem(categoryLabel: string, establishedSeverity?: string, relatedLabels: string[] = []): string {

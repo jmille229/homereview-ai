@@ -157,6 +157,18 @@ export interface QuoteComparison {
   generatedAt: string
 }
 
+/**
+ * Free pre-purchase teaser shown when two quotes are uploaded before the
+ * preview. Thin by design — totals + a best-value hint; the full comparison is
+ * paid. Derived from quotePreviewResultSchema (plus the resolved best label).
+ */
+export interface ComparisonTeaser {
+  quotes: Array<{ label: string; quotedTotal?: number | null }>
+  bestValueIndex: number
+  bestValueLabel: string
+  hookLine: string
+}
+
 // ─── Session (stored in Redis) ────────────────────────────────────────────────
 
 /**
@@ -192,6 +204,9 @@ export interface StoredSession {
    *  Index 0 is the original purchased quote. Present once ≥2 quotes exist. */
   quotes?: AnalyzedQuote[]
   comparison?: QuoteComparison
+  /** True while a pre-purchase second-quote comparison is being built in the
+   *  background, so the report page can show a "preparing" Compare tab. */
+  comparisonPending?: boolean
   followupCount: number
   followupMessages: FollowupMessage[]
   chatMessages: ChatMessage[]
@@ -225,6 +240,8 @@ export interface AnalyzeRequest {
 export interface AnalyzeResponse {
   sessionId: string
   preview: PreviewResult
+  /** Present when a second quote was uploaded for a free comparison teaser. */
+  comparisonTeaser?: ComparisonTeaser
 }
 
 export interface FollowupRequest {
@@ -263,6 +280,8 @@ export interface ReportStatusResponse {
   reportPath?: string
   /** Populated when status === 'failed'. */
   error?: string
+  /** True while a pre-purchase quote comparison is still being generated. */
+  comparisonPending?: boolean
 }
 
 export interface UpdateReportRequest {

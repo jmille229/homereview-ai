@@ -193,7 +193,7 @@ function Check() {
 
 export default function PreviewPage() {
   const router = useRouter()
-  const { flow, preview, sessionId, severityNotice } = useSessionStore()
+  const { flow, preview, sessionId, severityNotice, comparisonTeaser } = useSessionStore()
 
   const [purchasing, setPurchasing]       = useState(false)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
@@ -300,6 +300,44 @@ export default function PreviewPage() {
           </p>
           <p className="text-sm text-brand-navy leading-relaxed">{preview.keyInsight}</p>
         </div>
+
+        {/* ── Comparison teaser (two quotes uploaded) ──────────────────── */}
+        {comparisonTeaser && comparisonTeaser.quotes.length === 2 && (
+          <div className="bg-white border border-brand-border rounded-xl p-5 mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-[0.05em]">
+                Your two quotes
+              </p>
+              <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded">Free</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {comparisonTeaser.quotes.map((q, i) => {
+                const isBest = i === comparisonTeaser.bestValueIndex
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-xl p-4 border ${isBest ? 'border-emerald-300 bg-emerald-50' : 'border-brand-border bg-brand-bg'}`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                      <p className="text-xs font-semibold text-brand-navy break-words">{q.label}</p>
+                      {isBest && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-emerald-600 text-white rounded">Best value</span>
+                      )}
+                    </div>
+                    <p className="text-xl font-bold text-brand-navy tabular-nums">
+                      {typeof q.quotedTotal === 'number' ? `$${q.quotedTotal.toLocaleString()}` : '—'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-sm text-brand-navy leading-relaxed mb-3">{comparisonTeaser.hookLine}</p>
+            <p className="text-xs text-brand-muted leading-relaxed border-t border-brand-border pt-3">
+              The full side-by-side — scope-adjusted prices, what each quote leaves out, red flags,
+              and negotiation leverage — unlocks with your report.
+            </p>
+          </div>
+        )}
 
         {/* ── Follow-up Q&A ────────────────────────────────────────────── */}
         <div className="mb-10">

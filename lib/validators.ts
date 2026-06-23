@@ -108,6 +108,8 @@ export const analyzeRequestSchema = z.object({
     .regex(/^\d{5}$/, 'Please enter a valid 5-digit US zip code.')
     .or(z.literal('')),
   files:   filesArraySchema,
+  // Optional second contractor quote (Quote Shield) for a free comparison teaser.
+  secondQuoteFiles: filesArraySchema.optional(),
   answers: z.array(userAnswerSchema).max(4),
 })
 
@@ -140,6 +142,9 @@ export const generateReportRequestSchema = z.object({
   // client and re-sent at report generation time. Not sent for pre-quote flow.
   // Optional on retry too, since sessionStorage may have been cleared.
   files: filesArraySchema.optional(),
+  // Optional second quote — when present, a comparison is generated alongside
+  // the base report so the buyer lands on a populated Compare tab.
+  secondQuoteFiles: filesArraySchema.optional(),
 })
 
 export const updateReportRequestSchema = z.object({
@@ -188,6 +193,19 @@ export const questionsResultSchema = z.object({
       question: z.string().min(10).max(300),
     })
   ).min(0).max(4),
+})
+
+/**
+ * Free pre-purchase comparison teaser (2 quotes). Deliberately thin — bottom-line
+ * totals + a one-line best-value hint. The full normalized comparison stays paid.
+ */
+export const quotePreviewResultSchema = z.object({
+  quotes: z.array(z.object({
+    label:       z.string().min(1).max(80),
+    quotedTotal: z.number().int().nonnegative().nullish(),
+  })).length(2),
+  bestValueIndex: z.number().int().min(0).max(1),
+  hookLine:       z.string().min(10).max(400),
 })
 
 export const previewResultSchema = z.object({

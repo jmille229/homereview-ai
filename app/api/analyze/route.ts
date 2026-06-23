@@ -5,13 +5,14 @@ import { ZodError } from 'zod'
 import { callClaude } from '@/lib/claude'
 import { createSession, previewCacheKey, getCachedPreview, setCachedPreview } from '@/lib/redis'
 import { previewLimiter, getClientIp } from '@/lib/ratelimit'
-import { buildPreviewSystem, sanitizeInput } from '@/lib/prompts'
+import { buildPreviewSystem, buildQuotePreviewTeaserSystem, sanitizeInput } from '@/lib/prompts'
 import {
   analyzeRequestSchema,
   previewResultSchema,
+  quotePreviewResultSchema,
   MAX_BODY_BYTES,
 } from '@/lib/validators'
-import type { AnalyzeResponse } from '@/lib/types'
+import type { AnalyzeResponse, ComparisonTeaser } from '@/lib/types'
 import { getCategoryLabel, getRelatedAreaLabels, getRelatedAreaIds } from '@/lib/constants'
 import { parseJsonBody } from '@/lib/http'
 import { hasValidPreviewPass } from '@/lib/gate'
@@ -58,13 +59,22 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { flow, category, relatedAreas, description, zip, files, answers } = data
+  const { flow, category, relatedAreas, description, zip, files, secondQuoteFiles, answers } = data
 
   // ── Reject files whose bytes don't match their declared type — keeps garbage
   //    out of the expensive vision call ──────────────────────────────────────
   if (!filesHaveValidSignatures(files)) {
     return NextResponse.json(
       { error: 'One or more files appear corrupted or are not a supported image/PDF.' },
+      { status: 400 },
+    )
+  }
+  // A free comparison teaser only makes sense for the post-quote flow with both
+  // a primary quote and a second quote present.
+  const wantsTeaser = flow === 'post' && files.length > 0 && !!secondQuoteFiles && secondQuoteFiles.length > 0
+  if (secondQuoteFiles && secondQuoteFiles.length > 0 && !filesHaveValidSignatures(secondQuoteFiles)) {
+    return NextResponse.json(
+      { error: 'The second quote appears corrupted or is not a supported image/PDF.' },
       { status: 400 },
     )
   }
@@ -128,6 +138,34 @@ export async function POST(req: Request): Promise<NextResponse> {
     try { await setCachedPreview(cacheKey, preview) } catch { /* non-fatal */ }
   }
 
+  // ── Free comparison teaser (second quote uploaded) ─────────────────────────
+  // Thin by design: totals + a best-value hint. Best-effort — a teaser failure
+  // must never block the (already generated) single-quote preview.
+  let comparisonTeaser: ComparisonTeaser | undefined
+  if (wantsTeaser && secondQuoteFiles) {
+    try {
+      const teaser = await callClaude({
+        system:    buildQuotePreviewTeaserSystem(categoryLabel, zip),
+        userText:  'Compare the two attached contractor quotes (first = Quote 1, second = Quote 2).',
+        files:     [...files, ...secondQuoteFiles],
+        schema:    quotePreviewResultSchema,
+        model:     'sonnet',
+        maxTokens: 400,
+      })
+      const idx = Math.min(teaser.bestValueIndex, teaser.quotes.length - 1)
+      comparisonTeaser = {
+        quotes:         teaser.quotes,
+        bestValueIndex: idx,
+        bestValueLabel: teaser.quotes[idx].label,
+        hookLine:       teaser.hookLine,
+      }
+    } catch (err) {
+      console.error('[analyze] Comparison teaser failed (non-fatal):', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }
+
   // ── Persist session to Redis ───────────────────────────────────────────────
   const sessionId = randomUUID()
   const now       = new Date().toISOString()
@@ -159,6 +197,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  const response: AnalyzeResponse = { sessionId, preview }
+  const response: AnalyzeResponse = { sessionId, preview, comparisonTeaser }
   return NextResponse.json(response, { status: 201 })
 }

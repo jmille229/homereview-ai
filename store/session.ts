@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { AiQuestion, CategoryId, Flow, PreviewResult, UserAnswer } from '@/lib/types'
+import type { AiQuestion, CategoryId, ComparisonTeaser, Flow, PreviewResult, UserAnswer } from '@/lib/types'
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -23,6 +23,8 @@ interface SessionState {
   // ── Post-analysis ──
   sessionId: string | null
   preview:   PreviewResult | null
+  // Free 2-quote comparison teaser, when a second quote was uploaded.
+  comparisonTeaser: ComparisonTeaser | null
 
   // Set when a re-run (after the user edits inputs) produces a different
   // severity than the prior preview — so we can explain the change to them.
@@ -38,6 +40,7 @@ interface SessionState {
   setAnswers:        (answers: UserAnswer[]) => void
   setSessionId:      (id: string) => void
   setPreview:        (preview: PreviewResult) => void
+  setComparisonTeaser: (teaser: ComparisonTeaser | null) => void
   setSeverityNotice: (notice: { from: string; to: string } | null) => void
   reset:             () => void
 }
@@ -52,6 +55,7 @@ const initialState = {
   answers:     [],
   sessionId:   null,
   preview:     null,
+  comparisonTeaser: null,
   severityNotice: null,
 }
 
@@ -78,6 +82,7 @@ export const useSessionStore = create<SessionState>()(
       setAnswers:     (answers)     => set({ answers }),
       setSessionId:      (id)          => set({ sessionId: id }),
       setPreview:        (preview)     => set({ preview }),
+      setComparisonTeaser: (teaser)    => set({ comparisonTeaser: teaser }),
       setSeverityNotice: (notice)      => set({ severityNotice: notice }),
 
       reset: () => set(initialState),
@@ -97,6 +102,7 @@ export const useSessionStore = create<SessionState>()(
         answers:     state.answers,
         sessionId:   state.sessionId,
         preview:     state.preview,
+        comparisonTeaser: state.comparisonTeaser,
         severityNotice: state.severityNotice,
       }),
     },

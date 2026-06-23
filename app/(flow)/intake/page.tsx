@@ -15,7 +15,7 @@ import {
 } from '@/lib/validators'
 import { CATEGORY_LABELS } from '@/lib/constants'
 import type { Flow, UploadedFile } from '@/lib/types'
-import { savePendingFiles } from '@/lib/pendingFiles'
+import { savePendingFiles, savePendingSecondQuote } from '@/lib/pendingFiles'
 import { Button } from '@/components/ui/Button'
 import { TurnstileGate, turnstileRequired } from '@/components/ui/TurnstileGate'
 import {
@@ -146,6 +146,10 @@ export default function IntakePage() {
 
   const [files, setFiles]                     = useState<LocalFile[]>([])
   const [fileError, setFileError]             = useState<string | null>(null)
+  // Optional second quote (post flow) for a free comparison teaser. One document.
+  const [secondQuoteOpen, setSecondQuoteOpen] = useState(false)
+  const [secondFiles, setSecondFiles]         = useState<LocalFile[]>([])
+  const [secondFileError, setSecondFileError] = useState<string | null>(null)
   const [submitError, setSubmitError]         = useState<string | null>(null)
   const [submitting, setSubmitting]           = useState(false)
   const [descriptionTouched, setDescTouched] = useState(false)
@@ -157,6 +161,7 @@ export default function IntakePage() {
   // Quote Shield (post flow) with no uploaded quote — show a steering notice.
   const [showQuoteWarning, setShowQuoteWarning] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const secondFileRef = useRef<HTMLInputElement>(null)
 
   const gateRequired = turnstileRequired()
 
@@ -192,9 +197,10 @@ export default function IntakePage() {
       })
       validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
     }
-    const totalBytes = [...files, ...validated].reduce((sum, f) => sum + f.size, 0)
+    // Combined cap spans BOTH the primary quote and the optional second quote.
+    const totalBytes = [...files, ...validated, ...secondFiles].reduce((sum, f) => sum + f.size, 0)
     if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB. Try removing a file or using smaller scans.`)
+      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB across all quotes. Try removing a file or using smaller scans.`)
       return
     }
     setFiles(prev => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
@@ -204,12 +210,49 @@ export default function IntakePage() {
 
   const removeFile = (i: number) => setFiles(prev => prev.filter((_, j) => j !== i))
 
+  // ── Second quote (single document) ──────────────────────────────────────────
+
+  const handleSecondFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSecondFileError(null)
+    const selected = Array.from(e.target.files ?? [])
+    if (!selected.length) return
+    if (selected.length > 1) { setSecondFileError('Add one document for the second quote.'); return }
+
+    const file = selected[0]
+    if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
+      setSecondFileError('Only JPEG, PNG, WebP images and PDFs are accepted.')
+      return
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setSecondFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
+      return
+    }
+    const totalBytes = [...files, file].reduce((sum, f) => sum + f.size, 0)
+    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      setSecondFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB across both quotes. Try a smaller scan.`)
+      return
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('File read failed'))
+      reader.readAsDataURL(file)
+    })
+    setSecondFiles([{ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl }])
+    if (secondFileRef.current) secondFileRef.current.value = ''
+  }
+
+  const removeSecondFile = () => { setSecondFiles([]); setSecondFileError(null) }
+
   // ── Submit ────────────────────────────────────────────────────────────────
 
   // Switch this session to the pre-quote product (Diagnostic Brief) and reset
   // the user to the top so they re-orient to the changed form.
   const switchToBrief = () => {
     setShowQuoteWarning(false)
+    setSecondQuoteOpen(false)
+    setSecondFiles([])
+    setSecondFileError(null)
     setFlow('pre')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -263,6 +306,15 @@ export default function IntakePage() {
       name: f.name, type: f.type, size: f.size,
       data: f.dataUrl.split(',')[1] ?? '',
     }) as UploadedFile))
+    // Persist the optional second quote (post flow) for the free comparison teaser.
+    savePendingSecondQuote(
+      flow === 'post'
+        ? secondFiles.map(f => ({
+            name: f.name, type: f.type, size: f.size,
+            data: f.dataUrl.split(',')[1] ?? '',
+          }) as UploadedFile)
+        : [],
+    )
     setQuestions([])
     router.push('/questions')
   }
@@ -364,6 +416,62 @@ export default function IntakePage() {
               Uploading the actual quote document enables line-by-line pricing analysis.
               Text description alone gives you a less specific assessment.
             </p>
+
+            {/* Optional second quote → free side-by-side comparison teaser */}
+            {!secondQuoteOpen ? (
+              <button
+                type="button"
+                onClick={() => setSecondQuoteOpen(true)}
+                className="mt-3 text-xs font-semibold text-brand-amber-deep hover:text-brand-navy underline underline-offset-2"
+              >
+                + Comparing bids? Add a second quote (free)
+              </button>
+            ) : (
+              <div className="mt-3 p-3.5 bg-white border border-brand-border rounded-xl">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-xs font-semibold text-brand-navy">Second quote — for comparison</p>
+                  <button
+                    type="button"
+                    onClick={() => { setSecondQuoteOpen(false); removeSecondFile() }}
+                    className="text-[11px] text-brand-muted hover:text-brand-navy"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <p className="text-[11px] text-brand-muted mb-2.5 leading-relaxed">
+                  Add one more contractor&apos;s quote for the same job. Your free preview will
+                  show how they stack up — totals side by side, plus which looks like the better value.
+                </p>
+                {secondFiles.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => secondFileRef.current?.click()}
+                    className="w-full rounded-xl border border-dashed border-brand-border-dark p-4 text-center hover:bg-brand-bg transition-colors"
+                  >
+                    <p className="text-xs font-medium text-brand-navy">Upload the second quote</p>
+                    <p className="text-[11px] text-brand-muted mt-0.5">One PDF or photo · counts toward the 3MB total</p>
+                  </button>
+                ) : (
+                  <ul className="flex flex-wrap gap-2">
+                    {secondFiles.map((f, i) => (
+                      <li key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg border border-brand-border rounded-full text-xs text-brand-navy">
+                        <span className="truncate max-w-[160px]">{f.name}</span>
+                        <button type="button" onClick={removeSecondFile} aria-label={`Remove ${f.name}`} className="text-brand-muted hover:text-red-500 p-1.5 -m-1">×</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <input
+                  ref={secondFileRef}
+                  type="file"
+                  accept={ALLOWED_MIME_TYPES.join(',')}
+                  onChange={handleSecondFileChange}
+                  className="hidden"
+                  aria-hidden="true"
+                />
+                {secondFileError && <p role="alert" className="text-xs text-red-600 mt-2">{secondFileError}</p>}
+              </div>
+            )}
           </div>
         )}
 

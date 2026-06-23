@@ -186,6 +186,9 @@ async function generateAndSaveReport(
   files: UploadedFile[] = [],
   // Payer's checkout email — used to send the report-ready / failure email.
   payerEmail?: string,
+  // Optional second quote uploaded before purchase — triggers a comparison once
+  // the base report is built (best-effort; never fails the paid report).
+  secondQuoteFiles: UploadedFile[] = [],
 ): Promise<void> {
   // Outer try-catch ensures markReportFailed is ALWAYS called on any failure,
   // including errors that occur before the Claude call (e.g. getCategoryLabel).
@@ -236,6 +239,24 @@ async function generateAndSaveReport(
     }
 
     await markReportComplete(sessionId, report)
+
+    // If a second quote was uploaded before purchase, build the side-by-side
+    // comparison now so the buyer lands on a populated Compare tab. Strictly
+    // best-effort: the paid report already succeeded above, so a comparison
+    // failure must never surface as a report failure.
+    if (session.flow === 'post' && secondQuoteFiles.length > 0) {
+      try {
+        const withReport = { ...session, report: report as QuoteShieldReport }
+        const { quotes, comparison } = await runQuoteComparison(withReport, secondQuoteFiles)
+        await updateSession(sessionId, { quotes, comparison, comparisonPending: false })
+      } catch (err) {
+        console.error('[report/generate] Pre-purchase comparison failed (non-fatal):', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+          sessionId,
+        })
+        try { await updateSession(sessionId, { comparisonPending: false }) } catch { /* non-fatal */ }
+      }
+    }
 
     // Notify the buyer their report is ready (best-effort; dormant if email off).
     if (payerEmail && session.product) {
@@ -313,6 +334,12 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (data.files && !filesHaveValidSignatures(data.files)) {
     return NextResponse.json(
       { error: 'One or more files appear corrupted or are not a supported image/PDF.' },
+      { status: 400 },
+    )
+  }
+  if (data.secondQuoteFiles && !filesHaveValidSignatures(data.secondQuoteFiles)) {
+    return NextResponse.json(
+      { error: 'The second quote appears corrupted or is not a supported image/PDF.' },
       { status: 400 },
     )
   }
@@ -424,6 +451,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       stripeSessionId: data.stripeSessionId,
       product,
       reportStatus:    'generating',
+      // Flag a pending comparison so the report page can show a "preparing"
+      // Compare tab until the background comparison lands.
+      comparisonPending: (data.secondQuoteFiles?.length ?? 0) > 0,
     })
     // Index for email-based recovery (best-effort — never block the purchase).
     if (payerEmail) {
@@ -454,7 +484,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   //   - Total perceived wait time: 2-3 seconds to acknowledgement, not 40 seconds
   //
   waitUntil(
-    generateAndSaveReport(reportSessionId, session, data.files ?? [], payerEmail).finally(async () => {
+    generateAndSaveReport(reportSessionId, session, data.files ?? [], payerEmail, data.secondQuoteFiles ?? []).finally(async () => {
       // Always release the lock, whether generation succeeded or failed
       await releaseLock!()
     }),
