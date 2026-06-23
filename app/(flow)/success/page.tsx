@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AlertTriangleIcon } from '@/components/ui/icons'
 import type { GenerateReportResponse, ReportStatusResponse, UploadedFile } from '@/lib/types'
-import { getPendingFiles, clearPendingFiles } from '@/lib/pendingFiles'
+import { getPendingFiles, getPendingSecondQuote, clearPendingFiles } from '@/lib/pendingFiles'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,6 +39,7 @@ function SuccessContent() {
   // Capture files at mount time. sessionStorage may be cleared by the time
   // a retry occurs, so we hold a reference for the lifetime of this page.
   const filesRef        = useRef<UploadedFile[]>([])
+  const secondFilesRef  = useRef<UploadedFile[]>([])
 
   const stripeSessionId = params.get('stripe_session_id')
   const product         = params.get('product')
@@ -125,6 +126,7 @@ function SuccessContent() {
           // Re-send files on retry — held in ref since sessionStorage
           // may have been cleared between the initial attempt and the retry.
           files: filesRef.current,
+          secondQuoteFiles: secondFilesRef.current,
         }),
       })
       const json = await res.json() as GenerateReportResponse | { error: string }
@@ -162,6 +164,7 @@ function SuccessContent() {
     // Capture files now — sessionStorage is still intact at this point.
     // We clear them after capturing so they don't persist beyond this session.
     filesRef.current = getPendingFiles()
+    secondFilesRef.current = getPendingSecondQuote()
     clearPendingFiles()
 
     const initiate = async () => {
@@ -173,6 +176,7 @@ function SuccessContent() {
           body:    JSON.stringify({
             stripeSessionId,
             files: filesRef.current,
+            secondQuoteFiles: secondFilesRef.current,
           }),
         })
         const json = await res.json() as GenerateReportResponse | { error: string }

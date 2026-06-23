@@ -8,7 +8,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import type { AiQuestion, AnalyzeResponse, QuestionsResponse, UserAnswer } from '@/lib/types'
-import { getPendingFiles } from '@/lib/pendingFiles'
+import { getPendingFiles, getPendingSecondQuote } from '@/lib/pendingFiles'
 import { track } from '@vercel/analytics'
 
 const PROCESSING_MESSAGES = [
@@ -23,7 +23,7 @@ export default function QuestionsPage() {
   const {
     flow, category, relatedAreas, description, zip,
     questions, answers, preview, setQuestions, setAnswers, setSessionId, setPreview,
-    setSeverityNotice,
+    setComparisonTeaser, setSeverityNotice,
   } = useSessionStore()
 
   // Seed from previously saved answers so navigating back from the preview
@@ -53,10 +53,11 @@ export default function QuestionsPage() {
 
     try {
       const files = getPendingFiles()
+      const secondQuoteFiles = flow === 'post' ? getPendingSecondQuote() : []
       const res = await fetch('/api/analyze', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ flow, category, relatedAreas, description, zip, files, answers }),
+        body:    JSON.stringify({ flow, category, relatedAreas, description, zip, files, secondQuoteFiles, answers }),
       })
       const json: AnalyzeResponse | { error: string; code?: string } = await res.json()
       if (res.status === 403 && 'code' in json && json.code === 'gate') {
@@ -81,6 +82,7 @@ export default function QuestionsPage() {
       setAnswers(answers)
       setSessionId((json as AnalyzeResponse).sessionId)
       setPreview(nextPreview)
+      setComparisonTeaser((json as AnalyzeResponse).comparisonTeaser ?? null)
       track('preview_generated', { flow: flow ?? 'unknown' })
       router.push('/preview')
     } catch {
@@ -89,7 +91,7 @@ export default function QuestionsPage() {
     } finally {
       clearInterval(interval)
     }
-  }, [flow, category, relatedAreas, description, zip, preview, setAnswers, setSessionId, setPreview, setSeverityNotice, router])
+  }, [flow, category, relatedAreas, description, zip, preview, setAnswers, setSessionId, setPreview, setComparisonTeaser, setSeverityNotice, router])
 
   useEffect(() => {
     if (!flow || !category || !description) return

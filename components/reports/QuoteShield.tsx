@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { NavBar } from '@/components/ui/NavBar'
 import { ChatInterface } from '@/components/ui/ChatInterface'
 import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
@@ -38,6 +39,8 @@ interface Props {
   /** Multi-quote comparison set (present once ≥2 quotes have been analyzed). */
   quotes?: AnalyzedQuote[]
   comparison?: QuoteComparisonData
+  /** True while a pre-purchase second-quote comparison is still generating. */
+  comparisonPending?: boolean
   /** Read-only shared view: hides chat, uploads, tabs, and recovery. */
   readOnly?: boolean
   /** When present (owner view), shows a Share button that copies this link. */
@@ -135,13 +138,50 @@ export function QuoteShield({
   severity,
   quotes: initialQuotes,
   comparison: initialComparison,
+  comparisonPending = false,
   readOnly = false,
   shareUrl,
 }: Props) {
+  const router = useRouter()
   const [report, setReport] = useState<QuoteShieldReport | undefined>(initialReport)
   const [quotes, setQuotes] = useState<AnalyzedQuote[] | undefined>(initialQuotes)
   const [comparison, setComparison] = useState<QuoteComparisonData | undefined>(initialComparison)
   const [tab, setTab] = useState<Tab>('report')
+
+  // Sync state when the server re-renders with freshly stored comparison data
+  // (after router.refresh below picks up a background pre-purchase comparison).
+  useEffect(() => {
+    if (initialComparison && initialQuotes) {
+      setComparison(initialComparison)
+      setQuotes(initialQuotes)
+    }
+  }, [initialComparison, initialQuotes])
+
+  const [comparePollExpired, setComparePollExpired] = useState(false)
+
+  // A pre-purchase comparison runs in the background after the base report is
+  // ready. Poll until it lands, then refresh to pull it into the page. Bounded
+  // so a background timeout can't leave the spinner running forever.
+  useEffect(() => {
+    if (readOnly || comparison || !comparisonPending) return
+    let active = true
+    let tries = 0
+    const MAX_TRIES = 40 // ~2 minutes at 3s
+    const id = setInterval(async () => {
+      tries += 1
+      if (tries > MAX_TRIES) { active = false; clearInterval(id); setComparePollExpired(true); return }
+      try {
+        const res = await fetch(`/api/report/status/${sessionId}`)
+        const json = await res.json()
+        if (active && json?.comparisonPending === false) {
+          active = false
+          clearInterval(id)
+          router.refresh()
+        }
+      } catch { /* transient — try again next tick */ }
+    }, 3000)
+    return () => { active = false; clearInterval(id) }
+  }, [readOnly, comparison, comparisonPending, sessionId, router])
   const [copied, setCopied] = useState(false)
   const [showUpdate, setShowUpdate] = useState(false)
   const [updateType, setUpdateType] = useState<UpdateType>('new_quote')
@@ -269,9 +309,11 @@ export function QuoteShield({
   // ── Tab buttons ──────────────────────────────────────────────────────────
 
   const hasComparison = !!comparison && !!quotes && quotes.length >= 2
+  const comparePreparing = !hasComparison && comparisonPending && !readOnly
+  const showCompareTab = hasComparison || comparePreparing
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'report', label: 'Report' },
-    ...(hasComparison ? [{ id: 'compare' as Tab, label: `Compare (${quotes!.length})` }] : []),
+    ...(showCompareTab ? [{ id: 'compare' as Tab, label: hasComparison ? `Compare (${quotes!.length})` : 'Compare' }] : []),
     { id: 'activity', label: `Activity (${report?.updates?.length ?? 0})` },
   ]
 
@@ -646,6 +688,31 @@ export function QuoteShield({
         {/* ── COMPARE TAB ────────────────────────────────────────────────────── */}
         {!reportFailed && tab === 'compare' && hasComparison && (
           <QuoteComparison quotes={quotes!} comparison={comparison!} />
+        )}
+        {!reportFailed && tab === 'compare' && !hasComparison && comparePreparing && (
+          comparePollExpired ? (
+            <div className="card text-center py-10">
+              <p className="text-sm font-semibold text-brand-navy mb-1">Your comparison is taking longer than usual</p>
+              <p className="text-xs text-brand-muted leading-relaxed max-w-sm mx-auto mb-4">
+                It should be ready shortly. Refresh to check — your second quote is safely on file.
+              </p>
+              <button
+                onClick={() => router.refresh()}
+                className="text-xs font-semibold text-brand-navy border border-brand-border rounded-lg px-4 py-2 hover:border-brand-border-dark transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          ) : (
+            <div className="card text-center py-10" role="status">
+              <LoadingSpinner size={24} color="#B8722E" className="mx-auto mb-4" />
+              <p className="text-sm font-semibold text-brand-navy mb-1">Preparing your side-by-side…</p>
+              <p className="text-xs text-brand-muted leading-relaxed max-w-sm mx-auto">
+                We&apos;re comparing your two quotes — adjusted prices, scope gaps, red flags, and a
+                best-value pick. This usually takes under a minute and will appear here automatically.
+              </p>
+            </div>
+          )
         )}
 
         {/* ── ACTIVITY TAB ───────────────────────────────────────────────────── */}
