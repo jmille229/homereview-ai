@@ -23,7 +23,7 @@ const PACKAGES = [
     badgeClass: 'bg-blue-50 text-blue-700',
     label:      'Diagnostic Brief',
     tagline:    "Know exactly what you're dealing with — before you call anyone.",
-    price:      '$24',
+    price:      '$14',
     meta:       'Instant delivery · 30-day chat included',
     features: [
       'Complete diagnosis & most likely root cause',
@@ -43,7 +43,7 @@ const PACKAGES = [
     badgeClass: 'bg-emerald-50 text-emerald-700',
     label:      'Quote Shield',
     tagline:    "Find out if the price is fair — and get the language to push back.",
-    price:      '$59',
+    price:      '$29',
     meta:       'Instant delivery · Living report · 60 days of updates & chat',
     features: [
       'Line-by-line analysis of your quote against regional benchmarks',
