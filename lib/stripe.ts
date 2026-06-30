@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import type { Product } from './types'
+import { PRODUCT_PRICING } from './pricing'
 
 // ─── Singleton client (server-side only) ──────────────────────────────────────
 
@@ -14,17 +15,18 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
-/** All amounts in cents (USD). */
+/** All amounts in cents (USD). Amount + name come from the single pricing source
+ *  (lib/pricing.ts); only the Stripe-facing description lives here. */
 export const PRICES: Record<Product, { amount: number; name: string; description: string }> = {
   brief: {
-    amount: 1400,
-    name: 'Diagnostic Brief',
+    amount: PRODUCT_PRICING.brief.amountCents,
+    name:   PRODUCT_PRICING.brief.name,
     description:
       'Complete pre-quote analysis: diagnosis, cost guide, who to hire, and 8 contractor questions.',
   },
   shield: {
-    amount: 2900,
-    name: 'Quote Shield',
+    amount: PRODUCT_PRICING.shield.amountCents,
+    name:   PRODUCT_PRICING.shield.name,
     description:
       'Post-quote analysis with line-by-line review, upsell detection, negotiation guide, and 60-day living report.',
   },

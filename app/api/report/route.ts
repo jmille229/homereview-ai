@@ -100,6 +100,7 @@ function opt<T>(v: T | null | undefined): T | undefined {
 async function runQuoteComparison(
   session: StoredSession,
   newFiles: UploadedFile[],
+  timeoutMs?: number,
 ): Promise<{ quotes: AnalyzedQuote[]; comparison: QuoteComparison }> {
   const categoryLabel = getCategoryLabel(session.category)
   const report        = session.report as QuoteShieldReport
@@ -122,6 +123,7 @@ async function runQuoteComparison(
     model:     'sonnet',
     maxTokens: 3500,
     retries:   0,
+    ...(timeoutMs ? { timeoutMs } : {}),
   })
 
   // Map AI output to stored AnalyzedQuote[], preserving ids/addedAt for quotes
@@ -166,7 +168,12 @@ async function runQuoteComparison(
 }
 
 export const runtime    = 'nodejs'
-export const maxDuration = 120  // 120s gives Sonnet full generation time + cleanup margin on cold starts
+// 300s headroom: the post-quote flow can run the base report AND a second
+// (comparison) Sonnet call sequentially. At 120s the second call could be killed
+// mid-write, stranding comparisonPending. The comparison is also time-boxed below
+// against the remaining budget so it can never overrun. (CRIT/C-1)
+export const maxDuration = 300
+const GENERATION_BUDGET_MS = maxDuration * 1000
 
 // ─── Background report generation ─────────────────────────────────────────────
 
@@ -190,6 +197,7 @@ async function generateAndSaveReport(
   // the base report is built (best-effort; never fails the paid report).
   secondQuoteFiles: UploadedFile[] = [],
 ): Promise<void> {
+  const startedAt = Date.now()
   // Outer try-catch ensures markReportFailed is ALWAYS called on any failure,
   // including errors that occur before the Claude call (e.g. getCategoryLabel).
   // Previously, errors here left the session stuck in 'generating' forever.
@@ -244,17 +252,36 @@ async function generateAndSaveReport(
     // comparison now so the buyer lands on a populated Compare tab. Strictly
     // best-effort: the paid report already succeeded above, so a comparison
     // failure must never surface as a report failure.
+    //
+    // Time-boxed against the remaining function budget: the base report has
+    // already consumed some of maxDuration, so we only start the comparison if
+    // enough time remains, and cap its Claude call to that remainder. This
+    // guarantees we reach the `comparisonPending: false` write below rather than
+    // being killed mid-call. (CRIT/C-1, H-1)
     if (session.flow === 'post' && secondQuoteFiles.length > 0) {
-      try {
-        const withReport = { ...session, report: report as QuoteShieldReport }
-        const { quotes, comparison } = await runQuoteComparison(withReport, secondQuoteFiles)
-        await updateSession(sessionId, { quotes, comparison, comparisonPending: false })
-      } catch (err) {
-        console.error('[report/generate] Pre-purchase comparison failed (non-fatal):', {
-          message: err instanceof Error ? err.message : 'Unknown error',
-          sessionId,
+      const MIN_COMPARISON_MS = 35_000      // not worth starting with less runway than this
+      const SAFETY_MARGIN_MS  = 15_000      // leave room for the Redis write + cleanup
+      const remainingMs = GENERATION_BUDGET_MS - (Date.now() - startedAt) - SAFETY_MARGIN_MS
+      if (remainingMs < MIN_COMPARISON_MS) {
+        console.error('[report/generate] Skipping comparison — insufficient time budget:', {
+          sessionId, remainingMs,
         })
         try { await updateSession(sessionId, { comparisonPending: false }) } catch { /* non-fatal */ }
+      } else {
+        try {
+          const withReport = { ...session, report: report as QuoteShieldReport }
+          // Cap at 120s — a comparison never legitimately needs more — so the
+          // status endpoint's staleness window stays comfortably beyond it.
+          const compTimeout = Math.min(remainingMs, 120_000)
+          const { quotes, comparison } = await runQuoteComparison(withReport, secondQuoteFiles, compTimeout)
+          await updateSession(sessionId, { quotes, comparison, comparisonPending: false })
+        } catch (err) {
+          console.error('[report/generate] Pre-purchase comparison failed (non-fatal):', {
+            message: err instanceof Error ? err.message : 'Unknown error',
+            sessionId,
+          })
+          try { await updateSession(sessionId, { comparisonPending: false }) } catch { /* non-fatal */ }
+        }
       }
     }
 

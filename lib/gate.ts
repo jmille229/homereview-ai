@@ -108,14 +108,23 @@ export function passCookie(): { name: string; value: string; options: Record<str
 
 /**
  * Whether the current request may use the preview pipeline.
- * When the gate is disabled (no secret configured) this always returns true.
+ *
+ * SECURITY (#9): When the gate is unconfigured this now FAILS CLOSED in
+ * production — a dropped/missing TURNSTILE_SECRET_KEY no longer silently
+ * disables the only bot protection in front of the expensive pre-payment Claude
+ * calls. Operators who intentionally run ungated must opt in explicitly with
+ * ALLOW_UNGATED_PREVIEW=true. Development is always allowed for local testing.
  */
 export function hasValidPreviewPass(): boolean {
   if (!gateEnabled()) {
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[gate] TURNSTILE_SECRET_KEY not set — bot gate is DISABLED.')
+    if (process.env.NODE_ENV !== 'production') return true
+    if (process.env.ALLOW_UNGATED_PREVIEW === 'true') {
+      console.warn('[gate] TURNSTILE_SECRET_KEY not set — bot gate DISABLED via ALLOW_UNGATED_PREVIEW.')
+      return true
     }
-    return true
+    console.error('[gate] TURNSTILE_SECRET_KEY not set in production — failing closed. ' +
+      'Set the Turnstile keys, or ALLOW_UNGATED_PREVIEW=true to intentionally run ungated.')
+    return false
   }
   return passIsValid(cookies().get(PASS_COOKIE)?.value)
 }

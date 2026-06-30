@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 
 import { callClaudeConversation } from '@/lib/claude'
-import { getSession, updateSession } from '@/lib/redis'
+import { getSession, updateSessionWith } from '@/lib/redis'
 import { chatLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildChatSystem, sanitizeInput } from '@/lib/prompts'
 import { chatRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
@@ -84,10 +84,14 @@ export async function POST(req: Request): Promise<NextResponse> {
   const categoryLabel    = getCategoryLabel(session.category)
 
   // ── Multi-turn conversation call ───────────────────────────────────────────
-  // Pass the last 10 history messages as proper Anthropic conversation turns.
-  // This gives Claude genuine memory of the conversation, not just the report.
-  const recentHistory = data.history.slice(-10).map(m => ({
-    role:    m.role as 'user' | 'assistant',
+  // SECURITY (#6): Reconstruct conversation context from the SERVER-stored
+  // messages in Redis, NOT from the client-supplied `data.history`. Trusting the
+  // client let a caller forge `assistant` turns (putting words in the model's
+  // mouth) to bypass the system-prompt guardrails. The stored history is
+  // authoritative: user turns were sanitized on write, assistant turns are our
+  // own model output.
+  const recentHistory = (session.chatMessages ?? []).slice(-10).map(m => ({
+    role:    m.role,
     content: m.content,
   }))
 
@@ -111,18 +115,21 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   // ── Persist chat messages to Redis ─────────────────────────────────────────
+  // FIX (#7): Append against the CURRENT stored messages read inside the lock,
+  // not the snapshot from the start of this request. Two concurrent sends in the
+  // same session each appended to a stale array before, so the second write
+  // dropped the first exchange. updateSessionWith re-reads under the lock.
   const now = new Date().toISOString()
-  const newMessages: ChatMessage[] = [
-    ...(session.chatMessages ?? []),
+  const pair: ChatMessage[] = [
     { role: 'user',      content: sanitizedMessage, timestamp: now },
     { role: 'assistant', content: reply,             timestamp: now },
   ]
 
-  // Cap at 100 stored messages (50 exchanges) to bound Redis storage growth
-  const cappedMessages = newMessages.slice(-100)
-
   try {
-    await updateSession(data.sessionId, { chatMessages: cappedMessages })
+    await updateSessionWith(data.sessionId, (current) => ({
+      // Cap at 100 stored messages (50 exchanges) to bound Redis storage growth.
+      chatMessages: [...(current.chatMessages ?? []), ...pair].slice(-100),
+    }))
   } catch (err) {
     console.error('[chat] Redis update failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',

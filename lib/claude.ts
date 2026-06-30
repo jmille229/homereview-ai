@@ -60,6 +60,10 @@ interface CallClaudeOptions<T> {
   model?: 'haiku' | 'sonnet'
   maxTokens?: number
   retries?: number
+  /** Per-call abort timeout. Defaults to TIMEOUT_MS. Callers that chain multiple
+   *  calls under one serverless function budget pass a smaller value so the
+   *  second call can't overrun the function's maxDuration. */
+  timeoutMs?: number
 }
 
 /**
@@ -75,6 +79,7 @@ export async function callClaude<T>({
   model = 'sonnet',
   maxTokens = 2000,
   retries = 1,
+  timeoutMs = TIMEOUT_MS,
 }: CallClaudeOptions<T>): Promise<T> {
   const modelId = model === 'haiku' ? HAIKU_MODEL : SONNET_MODEL
 
@@ -91,7 +96,7 @@ export async function callClaude<T>({
       : system
 
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
 
     let response: Anthropic.Message
     try {
@@ -108,7 +113,7 @@ export async function callClaude<T>({
       )
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        lastError = new Error(`Claude API timed out after ${TIMEOUT_MS / 1000}s`)
+        lastError = new Error(`Claude API timed out after ${timeoutMs / 1000}s`)
         break
       }
       lastError = err instanceof Error ? err : new Error('Anthropic API error')

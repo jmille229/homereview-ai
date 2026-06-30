@@ -174,6 +174,24 @@ export const checkoutRequestSchema = z.object({
   product:   z.enum(['brief', 'shield'] as [Product, Product]),
 })
 
+const stripeSessionIdSchema = z
+  .string()
+  .regex(/^cs_(live|test)_[a-zA-Z0-9]{20,200}$/, 'Invalid payment session ID format.')
+
+export const adminRefundRequestSchema = z.object({
+  stripeSessionId: stripeSessionIdSchema,
+})
+
+export const adminSessionRequestSchema = z
+  .object({
+    email:           z.string().email().max(320).optional(),
+    stripeSessionId: stripeSessionIdSchema.optional(),
+    sessionId:       z.string().uuid().optional(),
+  })
+  .refine((d) => !!(d.email || d.stripeSessionId || d.sessionId), {
+    message: 'Provide email, stripeSessionId, or sessionId.',
+  })
+
 // ─── AI output schemas ────────────────────────────────────────────────────────
 //
 // Design principle: Zod validates STRUCTURE — required fields exist, types are

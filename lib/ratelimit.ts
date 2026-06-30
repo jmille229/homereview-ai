@@ -63,18 +63,45 @@ export const reclaimLimiter = new Ratelimit({
 })
 
 /**
- * Status polling endpoint: 300 requests per IP per hour.
+ * Status polling endpoint: 600 requests per IP per hour.
  *
- * The success page polls every 2 seconds for up to 90 seconds — up to 45
- * requests per purchase flow. Using the report limiter (20/day) would exhaust
- * a user's daily allowance from polling alone. This dedicated limiter allows
- * frequent polling without affecting other rate limit buckets.
+ * Two independent pollers now hit this endpoint: the success page (every 2s for
+ * up to 90s, ~45 reqs) AND the report page's comparison-pending poll (every 3s
+ * for up to 2 min, ~40 reqs). Bumped from 300 to 600 so a buyer who refreshes or
+ * opens the report in two tabs doesn't 429 their own polls. (M-4)
  */
 export const statusLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(300, '1 h'),
+  limiter: Ratelimit.slidingWindow(600, '1 h'),
   analytics: false,
   prefix: 'hr:status',
+})
+
+/**
+ * Report recovery (email → all of that email's reports): 5 attempts per IP/hour.
+ *
+ * Dedicated bucket (not shared with reclaim) and deliberately tight: this is the
+ * email-only path, so a looser limit would aid enumeration. (#4)
+ */
+export const recoverLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  analytics: false,
+  prefix: 'hr:recover',
+})
+
+/**
+ * Admin endpoints (refund / session lookup): 10 requests per IP per hour.
+ *
+ * The admin secret is already strong + constant-time compared, but an
+ * unthrottled endpoint invites online guessing and refund abuse if it ever
+ * leaks. Defense-in-depth. (#5)
+ */
+export const adminLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 h'),
+  analytics: false,
+  prefix: 'hr:admin',
 })
 
 /**

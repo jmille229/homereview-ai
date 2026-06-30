@@ -145,9 +145,9 @@ capability cookie above remains a useful second factor for shareable links.
 | API key security | Keys stored in server-side env vars only |
 | Rate limiting | Upstash Redis (sliding window, per-IP) |
 | Session storage | Upstash Redis, TTL 60 days |
-| File uploads | Base64 in request body (max 2MB/file, 3 files) |
+| File uploads | Base64 in request body (max 3MB/file, 3MB combined, 3 files) |
 | Payments | Stripe Checkout (hosted, PCI-compliant) |
-| AI models | Haiku for previews, Sonnet 4.6 for full reports |
+| AI models | Sonnet 4.6 for previews & full reports; Haiku for living-report updates |
 | Validation | Zod on all API inputs and AI outputs |
 
 ---

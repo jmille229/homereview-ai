@@ -148,8 +148,14 @@ export function QuoteShield({
   const [comparison, setComparison] = useState<QuoteComparisonData | undefined>(initialComparison)
   const [tab, setTab] = useState<Tab>('report')
 
-  // Sync state when the server re-renders with freshly stored comparison data
-  // (after router.refresh below picks up a background pre-purchase comparison).
+  // Sync state when the server re-renders with freshly stored data (after a
+  // router.refresh below picks up a background pre-purchase comparison, or the
+  // report itself was still generating at first paint). useState seeds only
+  // once, so without these effects a refresh would keep showing stale props. (#12)
+  useEffect(() => {
+    if (initialReport) setReport(initialReport)
+  }, [initialReport])
+
   useEffect(() => {
     if (initialComparison && initialQuotes) {
       setComparison(initialComparison)

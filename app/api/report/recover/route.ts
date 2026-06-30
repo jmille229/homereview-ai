@@ -2,43 +2,36 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 
 import { findSessionIdsByEmail, getSession } from '@/lib/redis'
-import { reclaimLimiter, getClientIp } from '@/lib/ratelimit'
+import { recoverLimiter, getClientIp } from '@/lib/ratelimit'
 import { recoverRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
 import { parseJsonBody } from '@/lib/http'
 import { getCategoryLabel } from '@/lib/constants'
-import {
-  accessCookieName,
-  accessCookieOptions,
-  accessWindowSeconds,
-  createAccessToken,
-} from '@/lib/access'
-import type { Product } from '@/lib/types'
+import { sendRecoveryEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
-
-interface RecoveredReport {
-  path:        string
-  product:     Product
-  category:    string
-  purchasedAt: string
-}
 
 /**
  * POST /api/report/recover
  *
  * Self-service recovery for a buyer who has lost their report link. They supply
- * the email used at Stripe checkout; we look up their paid sessions via the
- * recovery index, mint the per-session access cookie for each, and return the
- * list so the client can link straight to them.
+ * the email used at Stripe checkout; if any paid reports match, we EMAIL one-click
+ * magic links to that address.
  *
- * Email is the access factor (the product is account-less), so this is
- * rate-limited and the response only ever reflects the email that was submitted.
+ * SECURITY (#4): The email is not a secret, so this endpoint must not treat it as
+ * a bearer credential. It therefore:
+ *   - never returns report contents or sets access cookies in the HTTP response
+ *     (delivery is to the inbox, so possession of the inbox is the proof);
+ *   - always returns the same generic `{ ok: true }`, so an attacker can't
+ *     enumerate which emails are paying customers;
+ *   - uses a dedicated, tight rate limiter.
+ * Buyers who still have their report URL use /api/report/reclaim instead, which
+ * needs no email delivery.
  */
 export async function POST(req: Request): Promise<NextResponse> {
   const ip = getClientIp(req)
   if (!ip) return NextResponse.json({ error: 'Request could not be verified.' }, { status: 400 })
 
-  const { success } = await reclaimLimiter.limit(ip)
+  const { success } = await recoverLimiter.limit(ip)
   if (!success) {
     return NextResponse.json(
       { error: 'Too many attempts. Please wait an hour and try again.' },
@@ -61,43 +54,34 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const email = data.email.toLowerCase().trim()
 
+  // Constant response regardless of outcome — never reveal whether this email
+  // has reports. All real work happens out-of-band via email.
+  const ok = NextResponse.json({ ok: true })
+
   let sessionIds: string[]
   try {
     sessionIds = await findSessionIdsByEmail(email)
   } catch {
-    return NextResponse.json({ error: 'Service unavailable.' }, { status: 503 })
+    return ok
   }
 
-  const reports: RecoveredReport[] = []
-  const cookies: Array<{ name: string; value: string; options: ReturnType<typeof accessCookieOptions> }> = []
-
+  const reports: Array<{ sessionId: string; product: 'brief' | 'shield'; categoryLabel: string }> = []
   for (const id of sessionIds) {
     const session = await getSession(id).catch(() => null)
-    // Re-verify everything: the session still exists, is paid, and the stored
-    // payer email matches (the index key is a hash, this is defense in depth).
+    // Re-verify: still exists, is paid, and the stored payer email matches.
     if (!session || !session.paid || !session.product) continue
     if (session.payerEmail && session.payerEmail !== email) continue
-
-    const type = session.flow === 'pre' ? 'brief' : 'shield'
     reports.push({
-      path:        `/report/${type}/${id}`,
-      product:     session.product,
-      category:    getCategoryLabel(session.category),
-      purchasedAt: session.paidAt ?? session.createdAt,
-    })
-
-    const ttl = accessWindowSeconds(session.product)
-    cookies.push({
-      name:    accessCookieName(id),
-      value:   createAccessToken(id, ttl),
-      options: accessCookieOptions(ttl),
+      sessionId:     id,
+      product:       session.product,
+      categoryLabel: getCategoryLabel(session.category),
     })
   }
 
-  // Most recent first.
-  reports.sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime())
+  // Best-effort, dormant until Resend is configured. Never throws into the caller.
+  if (reports.length > 0) {
+    try { await sendRecoveryEmail({ to: email, reports }) } catch { /* non-fatal */ }
+  }
 
-  const res = NextResponse.json({ reports })
-  for (const c of cookies) res.cookies.set(c.name, c.value, c.options)
-  return res
+  return ok
 }

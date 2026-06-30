@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
+import { ZodError } from 'zod'
 
 import { isAuthorizedAdmin } from '@/lib/adminAuth'
+import { adminLimiter, getClientIp } from '@/lib/ratelimit'
+import { adminSessionRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
+import { parseJsonBody } from '@/lib/http'
 import { getSession, findSessionIdsByEmail } from '@/lib/redis'
 import { stripe } from '@/lib/stripe'
 import { getCategoryLabel } from '@/lib/constants'
@@ -34,18 +38,31 @@ function summarize(s: StoredSession) {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  const ip = getClientIp(req)
+  if (!ip) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  const { success } = await adminLimiter.limit(ip)
+  if (!success) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
+
   if (!isAuthorizedAdmin(req)) {
     return NextResponse.json({ error: 'Not found.' }, { status: 404 })
   }
 
-  let body: { email?: string; stripeSessionId?: string; sessionId?: string }
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 })
+  const parsed = await parseJsonBody(req, MAX_JSON_BYTES)
+  if (!parsed.ok) return parsed.res
+
+  let body: ReturnType<typeof adminSessionRequestSchema.parse>
+  try {
+    body = adminSessionRequestSchema.parse(parsed.data)
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return NextResponse.json({ error: err.issues[0]?.message ?? 'Invalid request.' }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
   const ids = new Set<string>()
 
-  if (body.sessionId) ids.add(body.sessionId.trim())
+  if (body.sessionId) ids.add(body.sessionId)
 
   if (body.email) {
     try {
@@ -55,7 +72,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   if (body.stripeSessionId) {
     try {
-      const cs = await stripe.checkout.sessions.retrieve(body.stripeSessionId.trim())
+      const cs = await stripe.checkout.sessions.retrieve(body.stripeSessionId)
       const rid = cs.metadata?.reportSessionId
       if (rid) ids.add(rid)
     } catch { /* ignore */ }

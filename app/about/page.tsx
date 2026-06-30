@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { NavBar } from '@/components/ui/NavBar'
+import { priceDisplay } from '@/lib/pricing'
 
 export const metadata = {
   title: 'About — HomeReview AI',
@@ -21,7 +22,7 @@ const VALUES = [
   },
   {
     title: 'Priced fairly',
-    body: 'A professional consultation costs $200–$500. A contractor service call to diagnose a problem costs $75–$150. We charge $14 for a Diagnostic Brief and $29 for a Quote Shield — less than one service call, available in under a minute, at 2am if that\'s when you need it.',
+    body: `A professional consultation costs $200–$500. A contractor service call to diagnose a problem costs $75–$150. We charge ${priceDisplay('brief')} for a Diagnostic Brief and ${priceDisplay('shield')} for a Quote Shield — less than one service call, available in under a minute, at 2am if that's when you need it.`,
   },
 ]
 

@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 
 import { callClaude } from '@/lib/claude'
-import { createSession, previewCacheKey, getCachedPreview, setCachedPreview } from '@/lib/redis'
+import {
+  createSession, previewCacheKey, getCachedPreview, setCachedPreview,
+  comparisonTeaserCacheKey, getCachedComparisonTeaser, setCachedComparisonTeaser,
+} from '@/lib/redis'
 import { previewLimiter, getClientIp } from '@/lib/ratelimit'
 import { buildPreviewSystem, buildQuotePreviewTeaserSystem, sanitizeInput } from '@/lib/prompts'
 import {
@@ -141,28 +144,45 @@ export async function POST(req: Request): Promise<NextResponse> {
   // ── Free comparison teaser (second quote uploaded) ─────────────────────────
   // Thin by design: totals + a best-value hint. Best-effort — a teaser failure
   // must never block the (already generated) single-quote preview.
+  //
+  // (#8) Cached on BOTH documents so the "best value" pick is deterministic for
+  // identical inputs (no flip on a back-button re-run) and we don't re-pay for
+  // the same comparison. Only a cache MISS consumes a budget unit and makes the
+  // (second, vision) Claude call — so the daily ceiling accounts for it honestly.
   let comparisonTeaser: ComparisonTeaser | undefined
   if (wantsTeaser && secondQuoteFiles) {
-    try {
-      const teaser = await callClaude({
-        system:    buildQuotePreviewTeaserSystem(categoryLabel, zip),
-        userText:  'Compare the two attached contractor quotes (first = Quote 1, second = Quote 2).',
-        files:     [...files, ...secondQuoteFiles],
-        schema:    quotePreviewResultSchema,
-        model:     'sonnet',
-        maxTokens: 400,
-      })
-      const idx = Math.min(teaser.bestValueIndex, teaser.quotes.length - 1)
-      comparisonTeaser = {
-        quotes:         teaser.quotes,
-        bestValueIndex: idx,
-        bestValueLabel: teaser.quotes[idx].label,
-        hookLine:       teaser.hookLine,
+    const teaserKey = comparisonTeaserCacheKey(JSON.stringify({
+      category,
+      zip,
+      files:  files.map(f => f.data),
+      second: secondQuoteFiles.map(f => f.data),
+    }))
+
+    try { comparisonTeaser = (await getCachedComparisonTeaser(teaserKey)) ?? undefined } catch { /* miss is fine */ }
+
+    if (!comparisonTeaser && await consumeDailyBudget('preview')) {
+      try {
+        const teaser = await callClaude({
+          system:    buildQuotePreviewTeaserSystem(categoryLabel, zip),
+          userText:  'Compare the two attached contractor quotes (first = Quote 1, second = Quote 2).',
+          files:     [...files, ...secondQuoteFiles],
+          schema:    quotePreviewResultSchema,
+          model:     'sonnet',
+          maxTokens: 400,
+        })
+        const idx = Math.min(teaser.bestValueIndex, teaser.quotes.length - 1)
+        comparisonTeaser = {
+          quotes:         teaser.quotes,
+          bestValueIndex: idx,
+          bestValueLabel: teaser.quotes[idx].label,
+          hookLine:       teaser.hookLine,
+        }
+        try { await setCachedComparisonTeaser(teaserKey, comparisonTeaser) } catch { /* non-fatal */ }
+      } catch (err) {
+        console.error('[analyze] Comparison teaser failed (non-fatal):', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        })
       }
-    } catch (err) {
-      console.error('[analyze] Comparison teaser failed (non-fatal):', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-      })
     }
   }
 

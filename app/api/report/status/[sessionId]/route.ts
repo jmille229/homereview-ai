@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/redis'
+import { getSession, updateSession } from '@/lib/redis'
 import { statusLimiter, getClientIp } from '@/lib/ratelimit'
 import type { ReportStatusResponse } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/** If a comparison is still flagged pending this long after the report
+ *  completed, its background job almost certainly died (function reclaimed) —
+ *  resolve it so the Compare tab stops spinning forever. Safely beyond the
+ *  capped 120s comparison runtime. (H-1) */
+const COMPARISON_STALE_MS = 5 * 60 * 1000
 
 /**
  * GET /api/report/status/[sessionId]
@@ -64,12 +70,24 @@ export async function GET(
   }
 
   if (status === 'complete' && session.report && session.product) {
+    // Reconcile a stranded comparison: if it's been pending well past the
+    // capped comparison runtime, the background job died — clear the flag so the
+    // report page (which reads it server-side) and the poll both settle. (H-1)
+    let comparisonPending = session.comparisonPending === true
+    if (comparisonPending) {
+      const updatedAt = session.updatedAt ?? session.createdAt
+      if (Date.now() - new Date(updatedAt).getTime() > COMPARISON_STALE_MS) {
+        comparisonPending = false
+        try { await updateSession(sessionId, { comparisonPending: false }) } catch { /* best-effort */ }
+      }
+    }
+
     // Determine the correct report path based on flow
     const reportType = session.flow === 'pre' ? 'brief' : 'shield'
     const res: ReportStatusResponse = {
       status:     'complete',
       reportPath: `/report/${reportType}/${sessionId}`,
-      comparisonPending: session.comparisonPending === true,
+      comparisonPending,
     }
     return NextResponse.json(res)
   }

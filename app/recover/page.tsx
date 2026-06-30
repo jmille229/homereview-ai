@@ -1,31 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { NavBar } from '@/components/ui/NavBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
-interface RecoveredReport {
-  path:        string
-  product:     'brief' | 'shield'
-  category:    string
-  purchasedAt: string
-}
-
-const PRODUCT_LABEL: Record<string, string> = {
-  brief:  'Diagnostic Brief',
-  shield: 'Quote Shield',
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 export default function RecoverPage() {
-  const [email, setEmail]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [reports, setReports]   = useState<RecoveredReport[] | null>(null)
+  const [email, setEmail]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [sent, setSent]       = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,13 +21,13 @@ export default function RecoverPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: email.trim() }),
       })
-      const json = await res.json() as { reports: RecoveredReport[] } | { error: string }
+      const json = await res.json() as { ok?: boolean } | { error: string }
       if (!res.ok || 'error' in json) {
         setError(('error' in json ? json.error : null) ?? 'Something went wrong. Please try again.')
         setLoading(false)
         return
       }
-      setReports((json as { reports: RecoveredReport[] }).reports)
+      setSent(true)
     } catch {
       setError('Network error. Please check your connection and try again.')
     } finally {
@@ -58,12 +41,29 @@ export default function RecoverPage() {
       <div className="max-w-md mx-auto px-5 py-12">
         <h1 className="text-2xl font-bold text-brand-navy mb-2">Find my report</h1>
         <p className="text-sm text-brand-muted leading-relaxed mb-6">
-          Enter the email you used at checkout and we&apos;ll bring back your report —
-          where you can keep chatting with your advisor and, for Quote Shield, upload
-          revised quotes throughout your window.
+          Enter the email you used at checkout and we&apos;ll send a secure link to
+          each of your reports — where you can keep chatting with your advisor and,
+          for Quote Shield, upload revised quotes throughout your window.
         </p>
 
-        {reports === null ? (
+        {sent ? (
+          <div role="status" className="p-4 bg-white border border-brand-border rounded-xl">
+            <p className="text-sm font-semibold text-brand-navy mb-1">Check your email</p>
+            <p className="text-xs text-brand-muted leading-relaxed mb-4">
+              If <span className="font-medium text-brand-navy break-words">{email.trim()}</span> has any
+              reports with us, we&apos;ve just emailed a secure sign-in link for each one. It can take a
+              minute to arrive — and check spam. Still stuck? Email{' '}
+              <a className="underline" href="mailto:support@homereviewai.com">support@homereviewai.com</a>.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setSent(false); setEmail('') }}
+              className="text-xs font-semibold text-brand-amber-deep hover:text-brand-navy"
+            >
+              ← Use a different email
+            </button>
+          </div>
+        ) : (
           <form onSubmit={handleSubmit}>
             <label htmlFor="recover-email" className="sr-only">Checkout email</label>
             <input
@@ -88,53 +88,14 @@ export default function RecoverPage() {
               className="btn-primary flex items-center justify-center gap-2 text-sm py-3"
             >
               {loading
-                ? <><LoadingSpinner size={15} color="white" /><span>Searching…</span></>
-                : 'Find my report →'}
+                ? <><LoadingSpinner size={15} color="white" /><span>Sending…</span></>
+                : 'Email me my report links →'}
             </button>
+            <p className="text-[11px] text-brand-muted mt-3 leading-relaxed">
+              Still have your report link? You can reopen it directly and re-enter this
+              email there if prompted — no need to wait for an email.
+            </p>
           </form>
-        ) : reports.length === 0 ? (
-          <div className="p-4 bg-white border border-brand-border rounded-xl">
-            <p className="text-sm font-semibold text-brand-navy mb-1">No report found</p>
-            <p className="text-xs text-brand-muted leading-relaxed mb-4">
-              We couldn&apos;t find a report for that email. Double-check it&apos;s the address
-              you used at checkout, or email{' '}
-              <a className="underline" href="mailto:support@homereviewai.com">support@homereviewai.com</a>{' '}
-              and we&apos;ll help.
-            </p>
-            <button
-              type="button"
-              onClick={() => { setReports(null); setEmail('') }}
-              className="text-xs font-semibold text-brand-amber-deep hover:text-brand-navy"
-            >
-              ← Try another email
-            </button>
-          </div>
-        ) : (
-          <div>
-            <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-3">
-              {reports.length === 1 ? 'Your report' : 'Your reports'}
-            </p>
-            <ul className="space-y-2.5">
-              {reports.map((r) => (
-                <li key={r.path}>
-                  <Link
-                    href={r.path}
-                    className="flex items-center justify-between gap-3 p-4 bg-white border border-brand-border rounded-xl hover:border-brand-border-dark transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-brand-navy break-words">
-                        {PRODUCT_LABEL[r.product] ?? 'Report'}
-                      </p>
-                      <p className="text-xs text-brand-muted mt-0.5 break-words">
-                        {r.category} · Purchased {formatDate(r.purchasedAt)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold text-brand-amber-deep flex-shrink-0">View →</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
       </div>
     </main>

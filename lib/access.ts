@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 import type { Product } from './enums'
+import { PRODUCT_PRICING } from './pricing'
 
 /**
  * lib/access.ts — Capability-based access control for paid reports.
@@ -17,15 +18,10 @@ import type { Product } from './enums'
  * purchases simultaneously.
  */
 
-// ─── Access windows (must match each product's living-report / chat window) ───
-
-const PRODUCT_ACCESS_DAYS: Record<Product, number> = {
-  brief:  30,
-  shield: 60,
-}
+// ─── Access windows (sourced from the single pricing catalog) ─────────────────
 
 export function accessWindowSeconds(product: Product): number {
-  return (PRODUCT_ACCESS_DAYS[product] ?? 30) * 24 * 60 * 60
+  return (PRODUCT_PRICING[product]?.accessDays ?? 30) * 24 * 60 * 60
 }
 
 // ─── Secret ───────────────────────────────────────────────────────────────────

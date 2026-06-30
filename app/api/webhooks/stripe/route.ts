@@ -3,7 +3,7 @@ import type Stripe from 'stripe'
 import type { StoredSession } from '@/lib/types'
 
 import { stripe } from '@/lib/stripe'
-import { updateSession, markStripeEventProcessed, indexSessionForRecovery } from '@/lib/redis'
+import { updateSession, markStripeEventProcessed, wasStripeEventProcessed, indexSessionForRecovery } from '@/lib/redis'
 
 export const runtime = 'nodejs'
 
@@ -47,34 +47,36 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 })
   }
 
-  // ── HIGH-02: Deduplicate events via Redis SET NX ───────────────────────────
+  // ── Idempotency: skip events we've ALREADY fully processed ─────────────────
   // Stripe guarantees at-least-once delivery and retries on non-2xx responses.
-  // Without this guard, a transient Redis failure followed by a Stripe retry
-  // would re-process an event and could trigger duplicate side-effects.
-  let isFirstDelivery: boolean
+  // FIX (HIGH): The "processed" marker is written only AFTER the handler below
+  // succeeds (not here, before the work). Previously, marking first meant a
+  // handler that failed and returned 500 was suppressed on Stripe's retry — the
+  // paid flag / recovery index were lost permanently. The side effects are
+  // idempotent, so the narrow window where two concurrent deliveries both pass
+  // this check and both run is harmless.
   try {
-    isFirstDelivery = await markStripeEventProcessed(event.id)
+    if (await wasStripeEventProcessed(event.id)) {
+      return NextResponse.json({ received: true })
+    }
   } catch (err) {
-    // If Redis is down we can't safely deduplicate — log and return 500 so
-    // Stripe retries later when the store is healthy.
-    console.error('[webhook] Event deduplication check failed:', {
+    // Redis unavailable — return 503 so Stripe retries when the store is healthy.
+    console.error('[webhook] Event dedup check failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',
       eventId: event.id,
     })
     return NextResponse.json({ error: 'Service unavailable.' }, { status: 503 })
   }
 
-  if (!isFirstDelivery) {
-    // Already processed — return 200 so Stripe stops retrying
-    return NextResponse.json({ received: true })
-  }
-
   // ── Handle events ──────────────────────────────────────────────────────────
   if (event.type === 'checkout.session.completed') {
     const checkoutSession = event.data.object as Stripe.Checkout.Session
 
+    // Only act on fully-paid sessions. For delayed methods Stripe sends this with
+    // payment_status 'unpaid' first; we intentionally do NOT mark the event
+    // processed, so the eventual paid delivery (or our own /api/report Stripe
+    // re-verification) still provisions the report.
     if (checkoutSession.payment_status !== 'paid') {
-      // Buy Now Pay Later flow — wait for payment_intent.succeeded
       return NextResponse.json({ received: true })
     }
 
@@ -83,7 +85,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     if (!reportSessionId || !product) {
       console.error('[webhook] Missing metadata:', { eventId: event.id })
-      // Return 200 — retrying won't fix a metadata configuration issue
+      // A metadata problem won't fix on retry — mark processed and stop.
+      try { await markStripeEventProcessed(event.id) } catch { /* non-fatal */ }
       return NextResponse.json({ received: true })
     }
 
@@ -105,11 +108,14 @@ export async function POST(req: Request): Promise<NextResponse> {
         message: err instanceof Error ? err.message : 'Unknown error',
         eventId: event.id,
       })
-      // Return 500 so Stripe retries — the event ID guard above ensures
-      // idempotency even if this handler runs again.
+      // Return 500 so Stripe retries — we did NOT mark the event processed, so
+      // the retry will genuinely re-run this handler.
       return NextResponse.json({ error: 'Failed to process event.' }, { status: 500 })
     }
   }
+
+  // Mark processed only after successful handling (or for events we don't act on).
+  try { await markStripeEventProcessed(event.id) } catch { /* non-fatal — at worst a duplicate idempotent re-run */ }
 
   return NextResponse.json({ received: true })
 }

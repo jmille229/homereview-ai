@@ -122,6 +122,51 @@ export async function sendReportFailedEmail({ to, sessionId, product, categoryLa
   }
 }
 
+interface RecoveryReport {
+  sessionId:     string
+  product:       Product
+  categoryLabel: string
+}
+
+/**
+ * Self-service recovery: emails one-click magic links to the address the buyer
+ * used at checkout. This makes recovery possession-based (you must control the
+ * inbox) rather than treating the email as a bearer credential. Best-effort and
+ * dormant until Resend is configured.
+ */
+export async function sendRecoveryEmail({ to, reports }: { to: string; reports: RecoveryReport[] }): Promise<void> {
+  const resend = client()
+  if (!resend || !to || reports.length === 0) return
+  const items = reports.map((r) => {
+    const link = magicLink(r.sessionId, r.product)
+    return `
+      <li style="margin:0 0 12px">
+        <a href="${link}" style="color:#1C2B3A;font-size:14px;font-weight:600;text-decoration:none">
+          ${PRODUCT_NAME[r.product]} — ${r.categoryLabel} →
+        </a>
+      </li>`
+  }).join('')
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to,
+      subject: reports.length === 1 ? 'Your HomeReview report link' : 'Your HomeReview report links',
+      html: wrapper(`
+        <h1 style="font-size:20px;margin:8px 0 12px">Here ${reports.length === 1 ? 'is your report' : 'are your reports'}</h1>
+        <p style="font-size:14px;line-height:1.6;color:#5A6678">
+          Open ${reports.length === 1 ? 'it' : 'them'} below — each link signs you straight in on this device.
+        </p>
+        <ul style="list-style:none;padding:0;margin:20px 0">${items}</ul>
+        <p style="font-size:12px;color:#5A6678;line-height:1.6">
+          These links are private to you — please don't forward them. If you didn't request this, you can ignore this email.
+        </p>
+      `),
+    })
+  } catch (err) {
+    console.error('[email] recovery send failed:', { message: err instanceof Error ? err.message : 'unknown' })
+  }
+}
+
 /** Ops alert to the team (uses the same Resend client). No-op if unconfigured. */
 export async function sendOpsAlert(subject: string, detail: string): Promise<void> {
   const resend = client()
