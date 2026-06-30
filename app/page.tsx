@@ -39,7 +39,7 @@ const PRODUCTS = [
       'DIY vs. pro — and exactly which type of pro',
       '8 questions to ask before you hire',
     ],
-    cta:     'Diagnose my problem — free',
+    cta:     'Diagnose my problem — free preview',
   },
   {
     flow:    'post' as Flow,
@@ -54,7 +54,7 @@ const PRODUCTS = [
       'Upsell & padding detection, missing scope',
       'Negotiation guide with exact language to use',
     ],
-    cta:     'Review my quote — free',
+    cta:     'Review my quote — free preview',
   },
 ]
 
