@@ -24,11 +24,22 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   // ── Read raw body for signature verification ───────────────────────────────
+  // Size-capped: real Stripe events are a few KB; 1 MB is generous headroom.
+  // Without a cap, anyone who knows the URL can force unbounded body buffering
+  // (signature verification only happens after the read).
+  const MAX_WEBHOOK_BYTES = 1_000_000
+  const declared = Number(req.headers.get('content-length') ?? 0)
+  if (declared > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 })
+  }
   let rawBody: string
   try {
     rawBody = await req.text()
   } catch {
     return NextResponse.json({ error: 'Failed to read request body.' }, { status: 400 })
+  }
+  if (Buffer.byteLength(rawBody, 'utf8') > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 })
   }
 
   // ── Verify Stripe signature ────────────────────────────────────────────────

@@ -8,13 +8,12 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import {
   CATEGORY_IDS,
-  MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_REQUEST,
-  MAX_TOTAL_UPLOAD_BYTES,
   ALLOWED_MIME_TYPES,
 } from '@/lib/validators'
 import { CATEGORY_LABELS } from '@/lib/constants'
-import type { Flow, UploadedFile } from '@/lib/types'
+import type { Flow } from '@/lib/types'
+import { readAndValidateFiles, toUploadedFiles, type LocalFile } from '@/lib/clientFiles'
 import { savePendingFiles, savePendingSecondQuote } from '@/lib/pendingFiles'
 import { Button } from '@/components/ui/Button'
 import { TurnstileGate, turnstileRequired } from '@/components/ui/TurnstileGate'
@@ -27,11 +26,6 @@ import {
   SearchIcon,
 } from '@/components/ui/icons'
 
-type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
-
-interface LocalFile {
-  name: string; type: AllowedMime; size: number; dataUrl: string
-}
 
 const FLOW_OPTIONS: Array<{
   value: Flow; Icon: typeof SearchIcon; title: string; sub: string
@@ -175,36 +169,17 @@ export default function IntakePage() {
     const selected = Array.from(e.target.files ?? [])
     if (!selected.length) return
 
-    if (files.length + selected.length > MAX_FILES_PER_REQUEST) {
-      setFileError(`Maximum ${MAX_FILES_PER_REQUEST} files allowed.`)
-      return
-    }
-    const validated: LocalFile[] = []
-    for (const file of selected) {
-      if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
-        setFileError('Only JPEG, PNG, WebP images and PDFs are accepted.')
-        return
-      }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
-        return
-      }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload  = () => resolve(reader.result as string)
-        reader.onerror = () => reject(new Error('File read failed'))
-        reader.readAsDataURL(file)
-      })
-      validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
-    }
     // Combined cap spans BOTH the primary quote and the optional second quote.
-    const totalBytes = [...files, ...validated, ...secondFiles].reduce((sum, f) => sum + f.size, 0)
-    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB across all quotes. Try removing a file or using smaller scans.`)
-      return
-    }
-    setFiles(prev => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
-    if (validated.length > 0) setShowQuoteWarning(false)
+    const result = await readAndValidateFiles(selected, {
+      existing:           [...files, ...secondFiles],
+      maxCount:           MAX_FILES_PER_REQUEST,
+      currentCount:       files.length,
+      combinedScopeLabel: ' across all quotes',
+    })
+    if (!result.ok) { setFileError(result.error); return }
+
+    setFiles(prev => [...prev, ...result.files].slice(0, MAX_FILES_PER_REQUEST))
+    setShowQuoteWarning(false)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -216,29 +191,17 @@ export default function IntakePage() {
     setSecondFileError(null)
     const selected = Array.from(e.target.files ?? [])
     if (!selected.length) return
-    if (selected.length > 1) { setSecondFileError('Add one document for the second quote.'); return }
 
-    const file = selected[0]
-    if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
-      setSecondFileError('Only JPEG, PNG, WebP images and PDFs are accepted.')
-      return
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setSecondFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
-      return
-    }
-    const totalBytes = [...files, file].reduce((sum, f) => sum + f.size, 0)
-    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      setSecondFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB across both quotes. Try a smaller scan.`)
-      return
-    }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload  = () => resolve(reader.result as string)
-      reader.onerror = () => reject(new Error('File read failed'))
-      reader.readAsDataURL(file)
+    // Single-document bucket that shares the primary quote's combined cap.
+    // (The outgoing second file is being replaced, so it doesn't count.)
+    const result = await readAndValidateFiles(selected, {
+      existing:           files,
+      maxCount:           1,
+      combinedScopeLabel: ' across both quotes',
     })
-    setSecondFiles([{ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl }])
+    if (!result.ok) { setSecondFileError(result.error); return }
+
+    setSecondFiles(result.files)
     if (secondFileRef.current) secondFileRef.current.value = ''
   }
 
@@ -302,19 +265,9 @@ export default function IntakePage() {
       }
     }
 
-    savePendingFiles(files.map(f => ({
-      name: f.name, type: f.type, size: f.size,
-      data: f.dataUrl.split(',')[1] ?? '',
-    }) as UploadedFile))
+    savePendingFiles(toUploadedFiles(files))
     // Persist the optional second quote (post flow) for the free comparison teaser.
-    savePendingSecondQuote(
-      flow === 'post'
-        ? secondFiles.map(f => ({
-            name: f.name, type: f.type, size: f.size,
-            data: f.dataUrl.split(',')[1] ?? '',
-          }) as UploadedFile)
-        : [],
-    )
+    savePendingSecondQuote(flow === 'post' ? toUploadedFiles(secondFiles) : [])
     setQuestions([])
     router.push('/questions')
   }

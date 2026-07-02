@@ -6,7 +6,7 @@ import { recoverLimiter, getClientIp } from '@/lib/ratelimit'
 import { recoverRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
 import { parseJsonBody } from '@/lib/http'
 import { getCategoryLabel } from '@/lib/constants'
-import { sendRecoveryEmail } from '@/lib/email'
+import { sendRecoveryEmail, emailEnabled } from '@/lib/email'
 
 export const runtime = 'nodejs'
 
@@ -80,7 +80,16 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // Best-effort, dormant until Resend is configured. Never throws into the caller.
   if (reports.length > 0) {
-    try { await sendRecoveryEmail({ to: email, reports }) } catch { /* non-fatal */ }
+    if (!emailEnabled()) {
+      // The response is deliberately blinded, so the USER can't be told delivery
+      // is impossible — the OPERATOR must be (via logs/Sentry; an email alert
+      // can't work here by definition). A real buyer just hit a dead end.
+      console.error('[recover] Recovery requested for an email with paid reports, ' +
+        'but RESEND_API_KEY is not configured — no email can be sent. ' +
+        'Configure Resend or handle this buyer via support.')
+    } else {
+      try { await sendRecoveryEmail({ to: email, reports }) } catch { /* non-fatal */ }
+    }
   }
 
   return ok

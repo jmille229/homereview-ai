@@ -9,7 +9,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { QuoteComparison } from './QuoteComparison'
 import type { Severity } from '@/lib/types'
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST, MAX_TOTAL_UPLOAD_BYTES } from '@/lib/validators'
+import { ALLOWED_MIME_TYPES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
+import { readAndValidateFiles, toUploadedFiles, type LocalFile } from '@/lib/clientFiles'
 import type {
   AnalyzedQuote,
   ChatMessage,
@@ -50,15 +51,6 @@ interface Props {
 // ─── Sub-types ────────────────────────────────────────────────────────────────
 
 type Tab = 'report' | 'compare' | 'activity'
-
-type AllowedMime = typeof ALLOWED_MIME_TYPES[number]
-
-interface LocalFile {
-  name: string
-  type: AllowedMime
-  size: number
-  dataUrl: string
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -208,35 +200,14 @@ export function QuoteShield({
     const selected = Array.from(e.target.files ?? [])
     if (!selected.length) return
 
-    if (files.length + selected.length > MAX_FILES_PER_REQUEST) {
-      setFileError(`Maximum ${MAX_FILES_PER_REQUEST} files allowed.`)
-      return
-    }
+    const result = await readAndValidateFiles(selected, {
+      existing:     files,
+      maxCount:     MAX_FILES_PER_REQUEST,
+      currentCount: files.length,
+    })
+    if (!result.ok) { setFileError(result.error); return }
 
-    const validated: LocalFile[] = []
-    for (const file of selected) {
-      if (!ALLOWED_MIME_TYPES.includes(file.type as AllowedMime)) {
-        setFileError('Only JPEG, PNG, WebP images and PDFs are accepted.')
-        return
-      }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setFileError(`"${file.name}" exceeds the ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB per-file limit.`)
-        return
-      }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => reject(new Error('File read failed'))
-        reader.readAsDataURL(file)
-      })
-      validated.push({ name: file.name, type: file.type as AllowedMime, size: file.size, dataUrl })
-    }
-    const totalBytes = [...files, ...validated].reduce((sum, f) => sum + f.size, 0)
-    if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      setFileError(`Combined size must be under ${Math.round(MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024)}MB.`)
-      return
-    }
-    setFiles((prev) => [...prev, ...validated].slice(0, MAX_FILES_PER_REQUEST))
+    setFiles((prev) => [...prev, ...result.files].slice(0, MAX_FILES_PER_REQUEST))
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -246,12 +217,7 @@ export function QuoteShield({
     setUpdateError(null)
     setUpdating(true)
 
-    const uploadedFiles: UploadedFile[] = files.map((f) => ({
-      name: f.name,
-      type: f.type,
-      size: f.size,
-      data: f.dataUrl.split(',')[1] ?? '',
-    }))
+    const uploadedFiles: UploadedFile[] = toUploadedFiles(files)
 
     try {
       const res = await fetch('/api/report', {
@@ -534,16 +500,31 @@ export function QuoteShield({
 
         {/* Tabs — only shown when report is available */}
         {!reportFailed && report && !readOnly && (
-          <div className="flex mb-4 print:hidden" role="tablist">
+          <div className="flex mb-4 print:hidden" role="tablist" aria-label="Report sections">
             {tabs.map(({ id, label }, i) => (
               <button
                 key={id}
+                id={`tab-${id}`}
                 role="tab"
                 aria-selected={tab === id}
+                aria-controls={`panel-${id}`}
+                tabIndex={tab === id ? 0 : -1}
                 onClick={() => setTab(id)}
+                onKeyDown={(e) => {
+                  // Roving tabindex + arrow-key navigation per the WAI-ARIA tabs pattern.
+                  let next = -1
+                  if (e.key === 'ArrowRight') next = (i + 1) % tabs.length
+                  else if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length
+                  else if (e.key === 'Home') next = 0
+                  else if (e.key === 'End') next = tabs.length - 1
+                  if (next === -1) return
+                  e.preventDefault()
+                  setTab(tabs[next].id)
+                  document.getElementById(`tab-${tabs[next].id}`)?.focus()
+                }}
                 className={`flex-1 py-2 text-sm transition-colors border ${
-                  i === 0 ? 'rounded-l-xl' : 'rounded-r-xl border-l-0'
-                } ${
+                  i === 0 ? 'rounded-l-xl' : 'border-l-0'
+                } ${i === tabs.length - 1 ? 'rounded-r-xl' : ''} ${
                   tab === id
                     ? 'bg-brand-navy text-white border-brand-navy font-medium'
                     : 'bg-white text-brand-muted border-brand-border hover:border-brand-border-dark'
@@ -557,7 +538,7 @@ export function QuoteShield({
 
         {/* ── REPORT TAB ─────────────────────────────────────────────────────── */}
         {!reportFailed && tab === 'report' && report && sections && (
-          <div role="tabpanel" aria-label="Report">
+          <div role="tabpanel" id="panel-report" aria-labelledby="tab-report">
             {/* Scope */}
             <SectionCard title={`${sections.scope}. Scope Confirmation`} badge={<VerdictBadge verdict={report.scopeVerdict} type="scope" />}>
               <p className="text-sm text-brand-muted leading-relaxed">{report.scopeAnalysis}</p>
@@ -692,10 +673,12 @@ export function QuoteShield({
         )}
 
         {/* ── COMPARE TAB ────────────────────────────────────────────────────── */}
-        {!reportFailed && tab === 'compare' && hasComparison && (
+        {!reportFailed && tab === 'compare' && (
+          <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
+        {hasComparison && (
           <QuoteComparison quotes={quotes!} comparison={comparison!} />
         )}
-        {!reportFailed && tab === 'compare' && !hasComparison && comparePreparing && (
+        {!hasComparison && comparePreparing && (
           comparePollExpired ? (
             <div className="card text-center py-10">
               <p className="text-sm font-semibold text-brand-navy mb-1">Your comparison is taking longer than usual</p>
@@ -720,10 +703,12 @@ export function QuoteShield({
             </div>
           )
         )}
+          </div>
+        )}
 
         {/* ── ACTIVITY TAB ───────────────────────────────────────────────────── */}
         {!reportFailed && tab === 'activity' && report && (
-          <div role="tabpanel" aria-label="Activity timeline">
+          <div role="tabpanel" id="panel-activity" aria-labelledby="tab-activity">
             <div className="card">
               <p className="text-sm font-semibold text-brand-navy mb-5">Report Activity</p>
               <ol className="relative" aria-label="Report update history">

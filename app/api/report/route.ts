@@ -71,7 +71,11 @@ function repairDiagnosticBrief(report: DiagnosticBriefReport): DiagnosticBriefRe
   }
 }
 
-function repairQuoteShield(report: Omit<QuoteShieldReport, 'updates'>): QuoteShieldReport {
+/** Exactly what quoteShieldSchema validates — kept explicit so a future schema
+ *  field can't silently satisfy (or break) the repair step's assumptions. */
+type QuoteShieldAiOutput = z.infer<typeof quoteShieldSchema>
+
+function repairQuoteShield(report: QuoteShieldAiOutput): QuoteShieldReport {
   return {
     ...report,
     upsells:             report.upsells.slice(0, 6),
