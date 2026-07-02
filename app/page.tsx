@@ -47,7 +47,7 @@ const PRODUCTS = [
     moment:  'Before you sign',
     badge:   'Quote Shield',
     label:   'I have a contractor\'s quote.',
-    sub:     'Find out if it\'s fair before you commit.',
+    sub:     'See how it compares before you commit.',
     features: [
       'Line-by-line pricing vs. regional benchmarks',
       'Verdict: Fair / High End / Inflated',
@@ -133,9 +133,9 @@ export default function HomePage() {
                 <span className="text-brand-amber-deep italic">unprepared.</span>
               </h1>
               <p className="text-lg text-brand-muted leading-relaxed">
-                An independent AI advisor that tells you what&apos;s actually wrong,
-                what it should cost, and whether your quote is fair — before you call
-                anyone or sign anything. Always on your side.
+                An independent AI advisor that helps you understand what&apos;s likely
+                going on, what similar jobs typically cost, and how your quote
+                compares — before you call anyone or sign anything. Always on your side.
               </p>
             </div>
 
