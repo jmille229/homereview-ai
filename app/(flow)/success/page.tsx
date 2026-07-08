@@ -18,7 +18,11 @@ const STATUS_MESSAGES = [
 ]
 
 const POLL_INTERVAL_MS = 2_000
-const POLL_TIMEOUT_MS  = 90_000
+// The server's report generation (a Sonnet call) can itself run up to ~90s
+// before it aborts. This client timeout must comfortably EXCEED that, plus
+// payment-verification + cold-start overhead — otherwise a slow-but-successful
+// report trips a false "taking longer than expected" failure right as it lands.
+const POLL_TIMEOUT_MS  = 150_000
 
 // ─── Inner component ──────────────────────────────────────────────────────────
 
@@ -289,14 +293,14 @@ function SuccessContent() {
         {/* Rotating copy is decorative for screen readers — announcing a new
             phrase every 3s is noise. The sr-only line announces once. */}
         <p className="sr-only" role="status">
-          Building your report. This usually takes about 30 seconds.
+          Building your report. This usually takes about a minute.
         </p>
         <p className="text-base font-bold text-brand-navy mb-2" aria-hidden="true">
           {STATUS_MESSAGES[msgIndex]}
         </p>
         <p className="text-sm text-brand-muted mb-6 leading-relaxed">
           We&apos;re building your full report. This usually takes
-          about 30 seconds — please don&apos;t close this page.
+          about a minute — please don&apos;t close this page.
         </p>
         <div className="flex items-center justify-center gap-1.5" aria-hidden="true">
           {[
