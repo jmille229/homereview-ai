@@ -49,10 +49,15 @@ export default function RecoverPage() {
         {sent ? (
           <div role="status" className="p-4 bg-white border border-brand-border rounded-xl">
             <p className="text-sm font-semibold text-brand-navy mb-1">Check your email</p>
-            <p className="text-xs text-brand-muted leading-relaxed mb-4">
+            <p className="text-xs text-brand-muted leading-relaxed mb-2">
               If <span className="font-medium text-brand-navy break-words">{email.trim()}</span> has any
               reports with us, we&apos;ve just emailed a secure sign-in link for each one. It can take a
-              minute to arrive — and check spam. Still stuck? Email{' '}
+              minute to arrive.
+            </p>
+            <p className="text-xs text-brand-muted leading-relaxed mb-4">
+              <span className="font-semibold text-brand-navy">Don&apos;t see it?</span> Check your spam
+              or junk folder and mark it &quot;not junk&quot; — then it&apos;ll land in your inbox next
+              time. Still stuck? Email{' '}
               <a className="underline" href="mailto:support@homereviewai.com">support@homereviewai.com</a>.
             </p>
             <button

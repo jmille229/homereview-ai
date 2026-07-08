@@ -8,6 +8,7 @@ import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { QuoteComparison } from './QuoteComparison'
+import { EmailedReportNote } from '@/components/ui/EmailedReportNote'
 import type { Severity } from '@/lib/types'
 import { ALLOWED_MIME_TYPES, MAX_FILES_PER_REQUEST } from '@/lib/validators'
 import { readAndValidateFiles, toUploadedFiles, type LocalFile } from '@/lib/clientFiles'
@@ -46,6 +47,8 @@ interface Props {
   readOnly?: boolean
   /** When present (owner view), shows a Share button that copies this link. */
   shareUrl?: string
+  /** True when a report link was emailed (email configured + payer email on file). */
+  emailedCopy?: boolean
 }
 
 // ─── Sub-types ────────────────────────────────────────────────────────────────
@@ -133,6 +136,7 @@ export function QuoteShield({
   comparisonPending = false,
   readOnly = false,
   shareUrl,
+  emailedCopy = false,
 }: Props) {
   const router = useRouter()
   const [report, setReport] = useState<QuoteShieldReport | undefined>(initialReport)
@@ -343,6 +347,9 @@ export function QuoteShield({
             </button>
           </div>
         </div>
+
+        {/* Emailed-copy + spam reminder (owner view, when email is configured) */}
+        {emailedCopy && !readOnly && <EmailedReportNote className="mb-4" />}
 
         {/* Update button — only when report exists and not failed */}
         {!updatesExpired && !reportFailed && report && !readOnly && (

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
 import { getSession, indexSessionForRecovery } from '@/lib/redis'
 import { hasValidAccess, createShareToken } from '@/lib/access'
+import { emailEnabled } from '@/lib/email'
 import { DiagnosticBrief } from '@/components/reports/DiagnosticBrief'
 import type { DiagnosticBriefReport } from '@/lib/types'
 
@@ -55,6 +56,7 @@ export default async function BriefReportPage({ params }: Props) {
       costMax={session.preview?.costMax}
       severity={session.preview?.severity}
       shareUrl={shareUrl}
+      emailedCopy={emailEnabled() && !!session.payerEmail}
     />
   )
 }

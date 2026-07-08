@@ -7,6 +7,7 @@ import { ChatInterface } from '@/components/ui/ChatInterface'
 import { AlertTriangleIcon, CheckIcon } from '@/components/ui/icons'
 import type { ChatMessage, DiagnosticBriefReport } from '@/lib/types'
 import { DisclaimerFooter } from '@/components/ui/DisclaimerFooter'
+import { EmailedReportNote } from '@/components/ui/EmailedReportNote'
 
 interface Props {
   report:              DiagnosticBriefReport | undefined
@@ -26,6 +27,8 @@ interface Props {
   readOnly?:           boolean
   /** Owner view only — shows a Share button that copies this link. */
   shareUrl?:           string
+  /** True when a report link was emailed (email configured + payer email on file). */
+  emailedCopy?:        boolean
 }
 
 const DIY_CONFIG: Record<string, { bg: string; text: string }> = {
@@ -120,6 +123,7 @@ export function DiagnosticBrief({
   severity,
   readOnly = false,
   shareUrl,
+  emailedCopy = false,
 }: Props) {
   const handlePrint = () => window.print()
   const [copied, setCopied] = useState(false)
@@ -169,6 +173,9 @@ export function DiagnosticBrief({
             </div>
           )}
         </div>
+
+        {/* Emailed-copy + spam reminder (owner view, when email is configured) */}
+        {emailedCopy && !readOnly && <EmailedReportNote className="mb-6" />}
 
         {/* Failed state */}
         {reportFailed && (

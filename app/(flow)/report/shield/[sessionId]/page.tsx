@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCategoryLabel } from '@/lib/constants'
 import { getSession, indexSessionForRecovery } from '@/lib/redis'
 import { hasValidAccess, createShareToken } from '@/lib/access'
+import { emailEnabled } from '@/lib/email'
 import { QuoteShield } from '@/components/reports/QuoteShield'
 import type { QuoteShieldReport } from '@/lib/types'
 
@@ -66,6 +67,7 @@ export default async function ShieldReportPage({ params }: Props) {
       comparison={session.comparison}
       comparisonPending={session.comparisonPending}
       shareUrl={shareUrl}
+      emailedCopy={emailEnabled() && !!session.payerEmail}
     />
   )
 }
