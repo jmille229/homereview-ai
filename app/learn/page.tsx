@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { NavBar } from '@/components/ui/NavBar'
-import { isArticleLive } from '@/lib/articles'
 import { getPublishedArticles, type LearnListItem } from '@/lib/learn'
 
 export const metadata = {
@@ -11,7 +10,7 @@ export const metadata = {
 // ISR — new/edited Sanity articles appear without a redeploy.
 export const revalidate = 60
 
-// ─── Shared page chrome ───────────────────────────────────────────────────────
+// ─── Page chrome ──────────────────────────────────────────────────────────────
 
 function LearnShell({ children }: { children: React.ReactNode }) {
   return (
@@ -54,9 +53,7 @@ function LearnShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Sanity-driven index ──────────────────────────────────────────────────────
-
-function SanityCard({ article }: { article: LearnListItem }) {
+function ArticleCard({ article }: { article: LearnListItem }) {
   return (
     <Link href={`/learn/${article.slug}`} className="card block group hover:border-brand-border-dark transition-colors">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -78,69 +75,9 @@ function Section({ label, items }: { label: string; items: LearnListItem[] }) {
     <div className="mb-8">
       <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-4">{label}</p>
       <div className="space-y-3">
-        {items.map((a) => <SanityCard key={a.slug} article={a} />)}
+        {items.map((a) => <ArticleCard key={a.slug} article={a} />)}
       </div>
     </div>
-  )
-}
-
-// ─── Legacy static index (fallback until Sanity has content) ──────────────────
-
-interface LegacyArticle {
-  slug: string; category: string; title: string; summary: string; readTime: string; published: string; featured?: boolean
-}
-
-const LEGACY_ARTICLES: LegacyArticle[] = [
-  { slug: 'hvac-replacement-quote-fair-price', category: 'HVAC', title: 'Is your HVAC replacement quote fair? What to expect in 2026.', summary: 'A complete breakdown of what a furnace or AC replacement should cost, what drives variation, and the line items most likely to be padded.', readTime: '6 min', published: 'May 2026', featured: true },
-  { slug: 'galvanized-pipe-repipe-cost', category: 'Plumbing', title: 'Galvanized pipes and repiping: what homeowners in older homes need to know.', summary: 'Houses built before 1970 likely have galvanized steel pipes. Here\'s how to know if they\'re failing, what replacement costs, and what a complete scope includes.', readTime: '7 min', published: 'May 2026', featured: true },
-  { slug: 'roofing-quote-red-flags', category: 'Roofing', title: 'Six red flags in a roofing quote — and what to do about them.', summary: 'Roofing is one of the most common categories for contractor fraud. These are the specific language patterns, scope gaps, and pricing signals that should give you pause.', readTime: '5 min', published: 'May 2026', featured: true },
-  { slug: 'foundation-crack-diagnosis', category: 'Foundation', title: 'Not all foundation cracks are equal. Here\'s how to tell the difference.', summary: 'Horizontal cracks, diagonal cracks, stair-step cracks — each tells a different story about what\'s happening structurally. A guide to what warrants urgent attention vs. monitoring.', readTime: '8 min', published: 'May 2026' },
-  { slug: 'contractor-questions-before-hiring', category: 'Hiring', title: 'Eight questions to ask every contractor before signing anything.', summary: 'Most homeowners skip the questions that matter most. These eight — tailored to what actually separates good contractors from bad ones — should be asked before any work begins.', readTime: '5 min', published: 'May 2026' },
-  { slug: 'hvac-frozen-coil-causes', category: 'HVAC', title: 'Ice on your AC lines: what it means and what to do first.', summary: 'Frost on the copper lines outside your air conditioner is a symptom, not a diagnosis. Here are the three most common root causes and how to distinguish them before calling anyone.', readTime: '4 min', published: 'May 2026' },
-  { slug: 'drain-cleaning-upsells', category: 'Plumbing', title: 'The most common plumbing upsells — and when they\'re legitimate.', summary: 'Camera inspections, hydro-jetting, pipe descaling — these services exist for good reasons. Here\'s when they\'re warranted and when they\'re being sold to you without diagnostic basis.', readTime: '5 min', published: 'May 2026' },
-  { slug: 'reading-a-contractor-quote', category: 'Hiring', title: 'How to read a contractor estimate: what every line item means.', summary: 'Contractor quotes are written for contractors, not homeowners. A plain-language guide to what each section means, what should always be included, and what should make you ask questions.', readTime: '6 min', published: 'May 2026' },
-]
-
-function LegacyCard({ article }: { article: LegacyArticle }) {
-  const live = isArticleLive(article.slug)
-  const inner = (
-    <>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <span className="text-[11px] font-semibold text-brand-amber-deep">{article.category}</span>
-        {live
-          ? <span className="text-[11px] text-brand-muted">{article.readTime} read</span>
-          : <span className="text-[11px] font-medium px-2 py-0.5 bg-brand-bg text-brand-muted rounded flex-shrink-0">Coming soon</span>}
-      </div>
-      <h2 className={`text-sm font-semibold text-brand-navy leading-snug mb-2 ${live ? 'group-hover:underline underline-offset-2' : ''}`}>{article.title}</h2>
-      <p className="text-xs text-brand-muted leading-relaxed mb-4">{article.summary}</p>
-      {live
-        ? <p className="text-[11px] font-semibold text-brand-amber-deep">Read guide →</p>
-        : <p className="text-[11px] text-brand-muted">{article.readTime} read</p>}
-    </>
-  )
-  return live
-    ? <Link href={`/learn/${article.slug}`} className="card block group hover:border-brand-border-dark transition-colors">{inner}</Link>
-    : <article className="card">{inner}</article>
-}
-
-function LegacyIndex() {
-  const featured = LEGACY_ARTICLES.filter((a) => a.featured)
-  const rest = LEGACY_ARTICLES.filter((a) => !a.featured)
-  return (
-    <>
-      {featured.length > 0 && (
-        <div className="mb-8">
-          <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-4">Featured</p>
-          <div className="space-y-3">{featured.map((a) => <LegacyCard key={a.slug} article={a} />)}</div>
-        </div>
-      )}
-      {rest.length > 0 && (
-        <div className="mb-8">
-          <p className="text-xs font-semibold text-brand-muted uppercase tracking-[0.05em] mb-4">All guides</p>
-          <div className="space-y-3">{rest.map((a) => <LegacyCard key={a.slug} article={a} />)}</div>
-        </div>
-      )}
-    </>
   )
 }
 
@@ -150,7 +87,17 @@ export default async function LearnPage() {
   const articles = await getPublishedArticles()
 
   if (articles.length === 0) {
-    return <LearnShell><LegacyIndex /></LearnShell>
+    return (
+      <LearnShell>
+        <div className="card text-center py-10">
+          <p className="text-sm font-semibold text-brand-navy mb-1">New guides are on the way</p>
+          <p className="text-xs text-brand-muted leading-relaxed max-w-sm mx-auto">
+            We&apos;re writing practical guides for homeowners. In the meantime, you can get a
+            specific analysis of your own situation below.
+          </p>
+        </div>
+      </LearnShell>
+    )
   }
 
   const featured = articles.filter((a) => a.featured)

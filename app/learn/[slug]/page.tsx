@@ -66,7 +66,7 @@ export default async function ArticlePage({ params }: Props) {
           <img src={cover} alt="" className="w-full rounded-2xl border border-brand-border mb-8" />
         )}
 
-        <LearnBody body={article.body} />
+        <LearnBody value={article.body} />
 
         {/* Standing CTA (articles can also embed their own inline CTA blocks) */}
         <div className="mt-12 p-6 bg-white border border-brand-border rounded-2xl text-center">

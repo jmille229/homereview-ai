@@ -1,9 +1,8 @@
 import Link from 'next/link'
 import { PortableText, type PortableTextComponents } from '@portabletext/react'
+import type { PortableTextBlock } from '@portabletext/types'
 import { urlForImage } from '@/sanity/lib/image'
 import { isSafeLinkHref } from '@/sanity/lib/href'
-import type { LearnBody as LearnBodyType } from '@/lib/learn'
-import type { ArticleSection } from '@/lib/articles'
 
 // ─── Callout styling by tone ──────────────────────────────────────────────────
 
@@ -141,36 +140,8 @@ const components: PortableTextComponents = {
   },
 }
 
-// ─── Legacy renderer (static lib/articles content, pre-migration) ─────────────
-
-function LegacySections({ sections }: { sections: ArticleSection[] }) {
-  return (
-    <div className="space-y-7">
-      {sections.map((section, i) => (
-        <section key={i}>
-          {section.heading && <h2 className="text-base font-semibold text-brand-navy mb-3">{section.heading}</h2>}
-          {section.body.map((p, j) => (
-            <p key={j} className="text-sm text-brand-muted leading-relaxed mb-3">{p}</p>
-          ))}
-          {section.bullets && (
-            <ul className="space-y-2 mt-1">
-              {section.bullets.map((b, k) => (
-                <li key={k} className="flex gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-amber flex-shrink-0 mt-[7px]" aria-hidden="true" />
-                  <span className="text-sm text-brand-muted leading-relaxed">{b}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
-    </div>
-  )
-}
-
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
-export function LearnBody({ body }: { body: LearnBodyType }) {
-  if (body.kind === 'legacy') return <LegacySections sections={body.sections} />
-  return <PortableText value={body.value} components={components} />
+export function LearnBody({ value }: { value: PortableTextBlock[] }) {
+  return <PortableText value={value} components={components} />
 }

@@ -10,7 +10,6 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx scripts/seedArticles.ts",
     "studio:dev": "sanity dev",
     "studio:deploy": "sanity deploy"
   },
@@ -44,7 +43,6 @@
     "sanity": "^3.99.0",
     "styled-components": "^6.4.3",
     "tailwindcss": "^3.4.4",
-    "tsx": "^4.23.0",
     "typescript": "^5.5.3",
     "vitest": "^2.1.9"
   }

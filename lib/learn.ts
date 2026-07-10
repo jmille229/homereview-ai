@@ -3,17 +3,10 @@ import type { PortableTextBlock } from '@portabletext/types'
 import type { SanityImageSource } from '@sanity/image-url/lib/types/types'
 import { sanityClient } from '@/sanity/lib/client'
 import { ARTICLES_QUERY, ARTICLE_QUERY, ARTICLE_SLUGS_QUERY } from '@/sanity/lib/queries'
-import { ARTICLES as LEGACY, type ArticleSection } from '@/lib/articles'
 
 /**
- * lib/learn.ts — the read layer for Learn content.
- *
- * Content lives in Sanity (edited via the Studio). During/after migration this
- * layer falls back to the legacy static articles in lib/articles.ts whenever
- * Sanity has nothing (empty dataset) or is unreachable — so the Learn section
- * never breaks, and it cuts over to Sanity automatically once content is
- * published there. Once everything is migrated, the legacy fallback can be
- * deleted.
+ * lib/learn.ts — the read layer for Learn content. Sanity is the single source
+ * of truth (edited via the Studio).
  */
 
 export interface LearnListItem {
@@ -27,12 +20,8 @@ export interface LearnListItem {
   coverImage?: SanityImageSource
 }
 
-export type LearnBody =
-  | { kind: 'portable'; value: PortableTextBlock[] }
-  | { kind: 'legacy';   sections: ArticleSection[] }
-
 export interface LearnArticle extends LearnListItem {
-  body:            LearnBody
+  body:            PortableTextBlock[]
   seoTitle?:       string
   seoDescription?: string
 }
@@ -71,14 +60,11 @@ function toListItem(row: SanityRow): LearnListItem {
 }
 
 /**
- * Published Sanity articles, newest first. Returns [] on empty dataset OR error
- * (the page falls back to legacy content), so a Sanity outage at build time
- * never hard-fails the deploy. Errors are reported to Sentry so an outage is
- * visible rather than silent.
+ * Published articles, newest first.
  *
- * NOTE (tech debt): once the legacy fallback is removed post-migration, prefer
- * letting errors propagate here so runtime ISR serves the last-good page instead
- * of an empty/stale one. Tracked with the legacy-cleanup task.
+ * On error, reports to Sentry and returns [] so a Sanity outage at build time
+ * can't hard-fail the deploy — the index then shows its empty state rather than
+ * crashing. (The index is prerendered at build, so it can't propagate.)
  */
 export async function getPublishedArticles(): Promise<LearnListItem[]> {
   try {
@@ -86,53 +72,54 @@ export async function getPublishedArticles(): Promise<LearnListItem[]> {
     return (rows ?? []).filter((r) => r.slug).map(toListItem)
   } catch (err) {
     Sentry.captureException(err, { tags: { area: 'learn', op: 'list' } })
-    console.error('[learn] Sanity list fetch failed; falling back to legacy:', {
+    console.error('[learn] Sanity list fetch failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',
     })
     return []
   }
 }
 
-/** A single article by slug — Sanity first, then the legacy static content. */
+/**
+ * A single article by slug.
+ *
+ * On a Sanity ERROR the throw propagates: during ISR regeneration Next keeps
+ * serving the last good cached page instead of 404ing a live article on a
+ * transient blip (and Sentry captures it). Returns null only when Sanity is
+ * reachable but has no such document → a genuine 404. Detail pages are generated
+ * on demand (see generateStaticParams), so this never hard-fails a build.
+ */
 export async function getArticleBySlug(slug: string): Promise<LearnArticle | null> {
+  let row: SanityRow | null
   try {
-    const row = await sanityClient.fetch<SanityRow | null>(ARTICLE_QUERY, { slug })
-    if (row?.slug && row.body) {
-      return {
-        ...toListItem(row),
-        body:           { kind: 'portable', value: row.body },
-        seoTitle:       row.seoTitle,
-        seoDescription: row.seoDescription,
-      }
-    }
+    row = await sanityClient.fetch<SanityRow | null>(ARTICLE_QUERY, { slug })
   } catch (err) {
     Sentry.captureException(err, { tags: { area: 'learn', op: 'article', slug } })
-    console.error('[learn] Sanity article fetch failed; trying legacy:', {
+    console.error('[learn] Sanity article fetch failed:', {
       message: err instanceof Error ? err.message : 'Unknown error',
       slug,
     })
+    throw err
   }
 
-  const legacy = LEGACY[slug]
-  if (!legacy) return null
+  if (!row?.slug || !row.body) return null
   return {
-    slug:      legacy.slug,
-    title:     legacy.title,
-    category:  legacy.category,
-    summary:   legacy.summary,
-    readTime:  legacy.readTime,
-    published: legacy.published,
-    featured:  false,
-    body:      { kind: 'legacy', sections: legacy.sections },
+    ...toListItem(row),
+    body:           row.body,
+    seoTitle:       row.seoTitle,
+    seoDescription: row.seoDescription,
   }
 }
 
-/** All known slugs (Sanity ∪ legacy) for static generation. */
+/**
+ * Slugs to prerender. Returns [] on error so the build never depends on Sanity
+ * being reachable; with dynamicParams, articles then generate on first request.
+ */
 export async function getAllArticleSlugs(): Promise<string[]> {
-  const set = new Set<string>(Object.keys(LEGACY))
   try {
     const slugs = await sanityClient.fetch<string[]>(ARTICLE_SLUGS_QUERY)
-    for (const s of slugs ?? []) if (s) set.add(s)
-  } catch { /* legacy slugs are enough to build */ }
-  return [...set]
+    return (slugs ?? []).filter(Boolean)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { area: 'learn', op: 'slugs' } })
+    return []
+  }
 }
