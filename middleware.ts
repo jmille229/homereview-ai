@@ -104,7 +104,7 @@ function sharedDirectives(): string[] {
     "base-uri 'self'",
     "object-src 'none'",
     `style-src 'self' 'unsafe-inline'${isPreview ? ' https://vercel.live' : ''}`, // Tailwind/Next inject inline styles; far lower risk than script
-    `img-src 'self' data: blob:${isPreview ? ' https://vercel.live https://vercel.com' : ''}`,
+    `img-src 'self' data: blob: https://cdn.sanity.io${isPreview ? ' https://vercel.live https://vercel.com' : ''}`,
     `font-src 'self'${isPreview ? ' https://vercel.live https://assets.vercel.com' : ''}`,
     `connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live https://*.pusher.com wss://*.pusher.com' : ''}`,
     `frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live' : ''}`,
