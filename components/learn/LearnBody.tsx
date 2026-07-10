@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { PortableText, type PortableTextComponents } from '@portabletext/react'
 import { urlForImage } from '@/sanity/lib/image'
+import { isSafeLinkHref } from '@/sanity/lib/href'
 import type { LearnBody as LearnBodyType } from '@/lib/learn'
 import type { ArticleSection } from '@/lib/articles'
 
@@ -15,9 +16,21 @@ const CALLOUT_TONES: Record<string, { wrap: string; label: string; badge: string
 
 // ─── Shared inline styling for text/marks/lists ───────────────────────────────
 
+/**
+ * Sanitize a CMS-supplied href. React does NOT block `javascript:`/`data:` URLs,
+ * so an editor (or a compromised Studio account) could otherwise store a link
+ * that executes script on click — stored XSS. Allow only same-site paths and a
+ * scheme allow-list; anything else (javascript:, data:, vbscript:, or a
+ * protocol-relative //host that would silently navigate off-site) becomes inert.
+ */
+function safeHref(raw?: string): { href: string; internal: boolean } {
+  const href = (raw ?? '').trim()
+  if (!isSafeLinkHref(href)) return { href: '#', internal: false }
+  return { href, internal: href.startsWith('/') }
+}
+
 function LinkMark({ value, children }: { value?: { href?: string }; children: React.ReactNode }) {
-  const href = value?.href ?? '#'
-  const internal = href.startsWith('/')
+  const { href, internal } = safeHref(value?.href)
   const className = 'text-brand-amber-deep underline underline-offset-2 hover:text-brand-navy'
   return internal
     ? <Link href={href} className={className}>{children}</Link>
@@ -108,8 +121,7 @@ const components: PortableTextComponents = {
       )
     },
     ctaBlock: ({ value }) => {
-      const href = value?.href ?? '/intake'
-      const internal = href.startsWith('/')
+      const { href, internal } = safeHref(value?.href ?? '/intake')
       return (
         <div className="my-8 p-6 bg-white border border-brand-border rounded-2xl text-center">
           <p className="text-base font-semibold text-brand-navy mb-1.5">{value?.heading}</p>

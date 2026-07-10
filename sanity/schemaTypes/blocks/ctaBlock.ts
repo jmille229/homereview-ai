@@ -1,4 +1,5 @@
 import { defineType, defineField } from 'sanity'
+import { isSafeLinkHref } from '../../lib/href'
 
 /** An inline call-to-action card (e.g. "get your quote reviewed"). */
 export const ctaBlock = defineType({
@@ -15,7 +16,8 @@ export const ctaBlock = defineType({
       type: 'string',
       description: 'A path on this site (e.g. /intake) or a full URL.',
       initialValue: '/intake',
-      validation: (r) => r.required(),
+      validation: (r) => r.required().custom((v) =>
+        !v || isSafeLinkHref(v) ? true : 'Use a path starting with / or an http(s)/mailto/tel URL.'),
     }),
   ],
   preview: {

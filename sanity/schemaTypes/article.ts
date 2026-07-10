@@ -1,4 +1,5 @@
 import { defineType, defineField } from 'sanity'
+import { isSafeLinkHref } from '../lib/href'
 
 const CATEGORIES = ['HVAC', 'Plumbing', 'Electrical', 'Roofing', 'Foundation', 'Appliances', 'Pest', 'Maintenance', 'Hiring', 'General']
 
@@ -69,7 +70,11 @@ export const article = defineType({
                 name: 'link',
                 title: 'Link',
                 type: 'object',
-                fields: [{ name: 'href', title: 'URL', type: 'string', validation: (r) => r.required() }],
+                fields: [{
+                  name: 'href', title: 'URL', type: 'string',
+                  validation: (r) => r.required().custom((v: string | undefined) =>
+                    !v || isSafeLinkHref(v) ? true : 'Use a path starting with / or an http(s)/mailto/tel URL.'),
+                }],
               },
             ],
           },

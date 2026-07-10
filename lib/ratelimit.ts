@@ -91,6 +91,23 @@ export const recoverLimiter = new Ratelimit({
 })
 
 /**
+ * Sanity revalidation webhook: 60 requests per IP per minute.
+ *
+ * The endpoint is secret-gated, so this is a blast-radius cap for a leaked
+ * secret (or a bulk-publish storm): each call invalidates the Learn ISR cache,
+ * and because the read client is useCdn:false, the next visitor's render fetches
+ * Sanity's uncached API. Without a cap, a loop could keep the caches perpetually
+ * cold and fan every visitor out to the rate-limited Sanity API. 60/min
+ * comfortably covers legitimate publishing while bounding abuse.
+ */
+export const revalidateLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, '1 m'),
+  analytics: false,
+  prefix: 'hr:revalidate',
+})
+
+/**
  * Admin endpoints (refund / session lookup): 10 requests per IP per hour.
  *
  * The admin secret is already strong + constant-time compared, but an
