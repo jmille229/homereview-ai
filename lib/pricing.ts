@@ -18,8 +18,8 @@ export interface ProductPricing {
 }
 
 export const PRODUCT_PRICING: Record<Product, ProductPricing> = {
-  brief:  { amountCents: 50, name: 'Diagnostic Brief', accessDays: 30 },
-  shield: { amountCents: 50, name: 'Quote Shield',     accessDays: 60 },
+  brief:  { amountCents: 1400, name: 'Diagnostic Brief', accessDays: 30 },
+  shield: { amountCents: 2900, name: 'Quote Shield',     accessDays: 60 },
 }
 
 /** Formats cents as a clean USD string: whole dollars show no decimals

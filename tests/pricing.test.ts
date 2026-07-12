@@ -16,9 +16,9 @@ describe('pricing (single source of truth)', () => {
   })
 
   it('pins the current prices', () => {
-    expect(PRODUCT_PRICING.brief.amountCents).toBe(50)
-    expect(PRODUCT_PRICING.shield.amountCents).toBe(50)
-    expect(priceDisplay('brief')).toBe('$0.50')
-    expect(priceDisplay('shield')).toBe('$0.50')
+    expect(PRODUCT_PRICING.brief.amountCents).toBe(1400)
+    expect(PRODUCT_PRICING.shield.amountCents).toBe(2900)
+    expect(priceDisplay('brief')).toBe('$14')
+    expect(priceDisplay('shield')).toBe('$29')
   })
 })

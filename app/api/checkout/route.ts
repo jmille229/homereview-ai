@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
+import type Stripe from 'stripe'
 
-import { stripe, PRICES } from '@/lib/stripe'
+import { stripe, PRICES, STRIPE_PRODUCT_IDS } from '@/lib/stripe'
 import { getSession } from '@/lib/redis'
 import { checkoutLimiter, getClientIp } from '@/lib/ratelimit'
 import { checkoutRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
@@ -74,7 +75,19 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 })
   }
 
-  const price = PRICES[data.product]
+  const price     = PRICES[data.product]
+  const productId = STRIPE_PRODUCT_IDS[data.product]
+
+  // Tie the line item to a persistent Stripe Product when configured (enables
+  // product-specific coupons); otherwise create an inline ad-hoc product. Either
+  // way the amount comes from our PRICES map, not from a Stripe-managed Price.
+  const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+    currency:    'usd',
+    unit_amount: price.amount,
+    ...(productId
+      ? { product: productId }
+      : { product_data: { name: price.name, description: price.description } }),
+  }
 
   // ── Create Stripe Checkout Session ─────────────────────────────────────────
   let checkoutSession: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
@@ -82,19 +95,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: price.name,
-              description: price.description,
-            },
-            unit_amount: price.amount,
-          },
-          quantity: 1,
-        },
-      ],
+      // Show the "Add promotion code" field so buyers can redeem coupon codes.
+      allow_promotion_codes: true,
+      line_items: [{ price_data: priceData, quantity: 1 }],
       // Stripe appends {CHECKOUT_SESSION_ID} automatically
       success_url: `${baseUrl}/success?stripe_session_id={CHECKOUT_SESSION_ID}&product=${data.product}`,
       cancel_url: `${baseUrl}/preview`,

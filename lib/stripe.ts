@@ -31,3 +31,17 @@ export const PRICES: Record<Product, { amount: number; name: string; description
       'Post-quote analysis with line-by-line review, upsell detection, negotiation guide, and 60-day living report.',
   },
 }
+
+/**
+ * Optional persistent Stripe Product IDs (prod_…), one per product.
+ *
+ * When set, checkout ties the line item to this catalog Product so coupons can
+ * be restricted to a specific product (and reporting is cleaner). The charged
+ * AMOUNT still comes from PRICES above (single source of truth) — the Product is
+ * used purely for identity, not price. When unset, checkout falls back to an
+ * inline ad-hoc product, so promotion codes still work order-wide.
+ */
+export const STRIPE_PRODUCT_IDS: Record<Product, string | undefined> = {
+  brief:  process.env.STRIPE_PRODUCT_BRIEF,
+  shield: process.env.STRIPE_PRODUCT_SHIELD,
+}
