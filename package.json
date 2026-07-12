@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "stripe:products": "node scripts/createStripeProducts.mjs",
     "studio:dev": "sanity dev",
     "studio:deploy": "sanity deploy"
   },
