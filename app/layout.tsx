@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/react'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { AdTracking } from '@/components/analytics/AdTracking'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
 import { organizationJsonLd, websiteJsonLd } from '@/lib/structuredData'
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
         <ErrorBoundary>{children}</ErrorBoundary>
         <Analytics />
+        <AdTracking />
       </body>
     </html>
   )

@@ -9,7 +9,7 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
 import { ShieldIcon } from '@/components/ui/icons'
-import { track } from '@vercel/analytics'
+import { trackEvent, getAttributionForCheckout } from '@/lib/analytics'
 import type { FollowupResponse, Product } from '@/lib/types'
 import { MAX_FOLLOWUP_QUESTIONS } from '@/lib/validators'
 import { priceDisplay } from '@/lib/pricing'
@@ -214,12 +214,12 @@ export default function PreviewPage() {
   const handlePurchase = async (product: Product) => {
     setPurchaseError(null)
     setPurchasing(true)
-    track('checkout_started', { product })
+    trackEvent('checkout_started', { product })
     try {
       const res  = await fetch('/api/checkout', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ sessionId, product }),
+        body:    JSON.stringify({ sessionId, product, attribution: getAttributionForCheckout() }),
       })
       const json: { url: string } | { error: string } = await res.json()
       if (!res.ok || 'error' in json) {

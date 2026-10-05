@@ -130,6 +130,31 @@ CSP is set in `middleware.ts`, with two policies chosen by path:
 If you add a third-party script to a funnel route, allow its host in `nonceCsp()`.
 The route group does not change URLs.
 
+## Ad conversion tracking
+
+Everything below is optional and off until its env var is set (see `.env.example`).
+
+- **Attribution (always on).** UTM params and click IDs (`gclid`, `gbraid`,
+  `wbraid`, `fbclid`) are captured on landing (last campaign touch, 90 days, in
+  `localStorage`), sent with checkout, and stored on the Stripe payment as
+  `attr_*` metadata. Filter or export payments in Stripe to see revenue by campaign.
+- **Purchase event.** `/success` fires `purchase` (Vercel Analytics), Meta
+  `Purchase`, and the Google Ads conversion once payment is verified, with the
+  amount actually charged and the Stripe Checkout Session ID as the de-dup ID.
+- **Meta Pixel + Conversions API.** Set `NEXT_PUBLIC_META_PIXEL_ID`, then
+  `META_CAPI_ACCESS_TOKEN` to also send `Purchase` server-side from the Stripe
+  webhook (counts buyers whose browser blocks the pixel). Verify with
+  `META_CAPI_TEST_EVENT_CODE` in Events Manager → Test events, then unset it.
+- **Google Ads.** Create a "Purchase" conversion action (website, use
+  transaction-specific values), then set `NEXT_PUBLIC_GOOGLE_ADS_ID` and
+  `NEXT_PUBLIC_GOOGLE_ADS_PURCHASE_LABEL`.
+- `preview_generated` maps to Meta `Lead` / Google `generate_lead` and
+  `checkout_started` to `InitiateCheckout` / `begin_checkout`, for optimizing
+  on earlier funnel steps while purchase volume is low.
+- Vendor hosts are added to the CSP in `middleware.ts` only for configured
+  pixels, and `/privacy` describes ad measurement only when a pixel is on.
+  `NEXT_PUBLIC_*` values are inlined at build time, so redeploy after changing them.
+
 ### Phase 2 — Full accounts (optional)
 
 For per-user dashboards and history, add a real auth provider (e.g. Clerk),

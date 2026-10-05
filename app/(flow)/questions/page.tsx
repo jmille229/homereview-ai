@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import type { AiQuestion, AnalyzeResponse, QuestionsResponse, UserAnswer } from '@/lib/types'
 import { getPendingFiles, getPendingSecondQuote } from '@/lib/pendingFiles'
-import { track } from '@vercel/analytics'
+import { trackEvent } from '@/lib/analytics'
 
 const PROCESSING_MESSAGES = [
   'Analyzing your situation…',
@@ -83,7 +83,7 @@ export default function QuestionsPage() {
       setSessionId((json as AnalyzeResponse).sessionId)
       setPreview(nextPreview)
       setComparisonTeaser((json as AnalyzeResponse).comparisonTeaser ?? null)
-      track('preview_generated', { flow: flow ?? 'unknown' })
+      trackEvent('preview_generated', { flow: flow ?? 'unknown' })
       router.push('/preview')
     } catch {
       setError('Network error. Please check your connection and try again.')

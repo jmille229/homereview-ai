@@ -7,6 +7,8 @@ import { getSession } from '@/lib/redis'
 import { checkoutLimiter, getClientIp } from '@/lib/ratelimit'
 import { checkoutRequestSchema, MAX_JSON_BYTES } from '@/lib/validators'
 import { parseJsonBody } from '@/lib/http'
+import { attributionToStripeMetadata, cleanAttributionValue, sanitizeAttribution } from '@/lib/attribution'
+import { metaCapiEnabled } from '@/lib/conversions'
 
 export const runtime = 'nodejs'
 
@@ -89,6 +91,18 @@ export async function POST(req: Request): Promise<NextResponse> {
       : { product_data: { name: price.name, description: price.description } }),
   }
 
+  // ── Attribution → Stripe metadata ──────────────────────────────────────────
+  // Read back by the webhook to attribute the purchase (and visible on the
+  // payment in the Stripe dashboard). The buyer's IP + user agent are kept only
+  // when Meta's Conversions API is configured, which needs them to match the
+  // purchase to an ad click.
+  const attributionMetadata = attributionToStripeMetadata(sanitizeAttribution(data.attribution))
+  if (metaCapiEnabled()) {
+    attributionMetadata.capi_ip = ip
+    const ua = cleanAttributionValue(req.headers.get('user-agent'))
+    if (ua) attributionMetadata.capi_ua = ua
+  }
+
   // ── Create Stripe Checkout Session ─────────────────────────────────────────
   let checkoutSession: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
   try {
@@ -102,6 +116,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       success_url: `${baseUrl}/success?stripe_session_id={CHECKOUT_SESSION_ID}&product=${data.product}`,
       cancel_url: `${baseUrl}/preview`,
       metadata: {
+        ...attributionMetadata,
         reportSessionId: data.sessionId,
         product: data.product,
       },

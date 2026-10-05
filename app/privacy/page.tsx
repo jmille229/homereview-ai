@@ -1,12 +1,17 @@
 import { NavBar } from '@/components/ui/NavBar'
+import { ANY_AD_PIXEL_ENABLED, GOOGLE_ADS_ID, META_PIXEL_ID } from '@/lib/adConfig'
 
 export const metadata = {
   title: 'Privacy Policy — HomeReview AI',
 }
 
-const LAST_UPDATED = 'June 2026'
+const LAST_UPDATED = 'October 2026'
 const COMPANY      = 'HomeReview AI'
 const CONTACT      = 'support@homereviewai.com'
+
+// Ad pixels are env-configured (lib/adConfig.ts); this policy describes them
+// only when they are actually on, so it stays accurate either way.
+const AD_VENDORS = [META_PIXEL_ID && 'Meta', GOOGLE_ADS_ID && 'Google'].filter(Boolean).join(' and ')
 
 export default function PrivacyPage() {
   return (
@@ -56,8 +61,15 @@ export default function PrivacyPage() {
             <p>
               We use your information solely to provide the service: to generate your analysis, to
               process your payment, to deliver and let you re-access your report, to operate
-              follow-up chat, and to protect the service from abuse. We do not use your information
-              for advertising, and we do not sell it.
+              follow-up chat, and to protect the service from abuse.{' '}
+              {ANY_AD_PIXEL_ENABLED
+                ? 'We do not sell your information. We use limited information about your visit and purchase to measure whether our advertising works, as described under Cookies below.'
+                : 'We do not use your information for advertising, and we do not sell it.'}
+            </p>
+            <p className="mt-3">
+              If you arrive through an ad or a tagged link, we record which campaign brought you
+              (for example, the campaign tags in the link) alongside your payment, so we can tell
+              which of our marketing works. This never includes the content of your analysis.
             </p>
           </section>
 
@@ -73,6 +85,12 @@ export default function PrivacyPage() {
               <li><span className="font-medium text-brand-navy">Cloudflare</span> — bot / abuse protection.</li>
               <li><span className="font-medium text-brand-navy">Vercel</span> — application hosting.</li>
               <li><span className="font-medium text-brand-navy">Resend</span> — sends transactional email (e.g., your report link).</li>
+              {META_PIXEL_ID && (
+                <li><span className="font-medium text-brand-navy">Meta</span> — measures whether our Facebook / Instagram ads lead to purchases.</li>
+              )}
+              {GOOGLE_ADS_ID && (
+                <li><span className="font-medium text-brand-navy">Google</span> — measures whether our Google ads lead to purchases.</li>
+              )}
             </ul>
             <p className="mt-3">
               Each processes data only on our behalf to deliver the service. We do not permit them to
@@ -93,10 +111,20 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-base font-semibold text-brand-navy mb-3">5. Cookies</h2>
             <p>
-              We use only strictly-necessary cookies: a signed, HttpOnly cookie that grants access to
-              a paid report, and a short-lived verification cookie for the anti-bot check. We do not
-              use advertising or cross-site tracking cookies.
+              We use strictly-necessary cookies: a signed, HttpOnly cookie that grants access to
+              a paid report, and a short-lived verification cookie for the anti-bot check.
+              {!ANY_AD_PIXEL_ENABLED && ' We do not use advertising or cross-site tracking cookies.'}
             </p>
+            {ANY_AD_PIXEL_ENABLED && (
+              <p className="mt-3">
+                We also use {AD_VENDORS} advertising tags, which set cookies to measure whether our
+                ads lead to visits and purchases.
+                {META_PIXEL_ID && ' When you buy, we also send Meta the purchase amount, a hashed (one-way encoded) copy of your checkout email, and your IP address and browser type, so the purchase can be matched to an ad.'}
+                {' '}The content of your analysis, descriptions, and uploaded documents is never
+                shared. You can limit this with your browser&apos;s tracking protection or your ad
+                settings at {AD_VENDORS}.
+              </p>
+            )}
           </section>
 
           <section>

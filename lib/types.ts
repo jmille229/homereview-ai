@@ -272,6 +272,8 @@ export interface GenerateReportResponse {
   status: 'generating'
   sessionId: string
   product: import('./enums').Product
+  /** Amount charged at checkout, in cents (after promo codes). For conversion tracking. */
+  amountPaidCents?: number
 }
 
 export interface ReportStatusResponse {

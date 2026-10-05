@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import type { StoredSession } from '@/lib/types'
 
+import { waitUntil } from '@vercel/functions'
 import { stripe } from '@/lib/stripe'
+import { reportPurchaseConversion } from '@/lib/conversions'
 import { updateSession, markStripeEventProcessed, wasStripeEventProcessed, indexSessionForRecovery } from '@/lib/redis'
 
 export const runtime = 'nodejs'
@@ -123,6 +125,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       // the retry will genuinely re-run this handler.
       return NextResponse.json({ error: 'Failed to process event.' }, { status: 500 })
     }
+
+    // Ad conversion (Meta Conversions API). Best-effort and after the response,
+    // so a slow or failing ad platform never delays or fails the webhook.
+    waitUntil(reportPurchaseConversion(checkoutSession))
   }
 
   // Mark processed only after successful handling (or for events we don't act on).

@@ -172,6 +172,13 @@ export const recoverRequestSchema = z.object({
 export const checkoutRequestSchema = z.object({
   sessionId: z.string().uuid(),
   product:   z.enum(['brief', 'shield'] as [Product, Product]),
+  // Campaign attribution (UTM / click IDs). Best-effort and untrusted: unknown
+  // keys are dropped and values cleaned by sanitizeAttribution() in the route.
+  // Size-bounded here so a bogus payload can't bloat the Stripe metadata.
+  attribution: z
+    .record(z.string().max(40), z.string().max(1000))
+    .refine(r => Object.keys(r).length <= 30, 'Too many attribution fields.')
+    .optional(),
 })
 
 const stripeSessionIdSchema = z

@@ -6,6 +6,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AlertTriangleIcon } from '@/components/ui/icons'
 import type { GenerateReportResponse, ReportStatusResponse, UploadedFile } from '@/lib/types'
 import { getPendingFiles, getPendingSecondQuote, clearPendingFiles } from '@/lib/pendingFiles'
+import { trackPurchase } from '@/lib/analytics'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,15 @@ function SuccessContent() {
 
         sessionId = (json as GenerateReportResponse).sessionId
         sessionIdRef.current = sessionId
+
+        // Payment is verified server-side at this point: record the conversion
+        // (once per checkout; de-duplicated with the server-side event by ID).
+        const verified = json as GenerateReportResponse
+        trackPurchase({
+          product:       verified.product,
+          transactionId: stripeSessionId,
+          amountCents:   verified.amountPaidCents,
+        })
       } catch {
         handleFail('Network error. Please check your connection and try again.')
         return
