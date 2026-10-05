@@ -169,6 +169,11 @@ export const recoverRequestSchema = z.object({
   email: z.string().email('Enter a valid email address.').max(320),
 })
 
+export const leadCaptureRequestSchema = z.object({
+  sessionId: z.string().uuid(),
+  email:     z.string().trim().toLowerCase().email('Enter a valid email address.').max(320),
+})
+
 export const checkoutRequestSchema = z.object({
   sessionId: z.string().uuid(),
   product:   z.enum(['brief', 'shield'] as [Product, Product]),

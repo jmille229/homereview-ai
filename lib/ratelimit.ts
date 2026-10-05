@@ -91,6 +91,30 @@ export const recoverLimiter = new Ratelimit({
 })
 
 /**
+ * Free-preview email capture: 10 requests per IP per hour.
+ *
+ * Each capture sends an email to a typed-in address, so this caps how much
+ * mail one IP can trigger (capture is also once per session).
+ */
+export const leadLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 h'),
+  analytics: false,
+  prefix: 'hr:lead',
+})
+
+/**
+ * Nurture-email links (checkout, unsubscribe): 30 requests per IP per hour.
+ * Signed links, so this only blunts scripted hammering of Stripe session creation.
+ */
+export const nurtureLinkLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, '1 h'),
+  analytics: false,
+  prefix: 'hr:nurture-link',
+})
+
+/**
  * Sanity revalidation webhook: 60 requests per IP per minute.
  *
  * The endpoint is secret-gated, so this is a blast-radius cap for a leaked

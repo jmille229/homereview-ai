@@ -145,3 +145,42 @@ export function hasValidAccess(sessionId: string): boolean {
   const token = cookies().get(accessCookieName(sessionId))?.value
   return verifyAccessToken(sessionId, token)
 }
+
+// ─── Nurture-email link tokens ──────────────────────────────────────────────
+//
+// Links in the free-preview nurture emails carry their own purpose-scoped HMACs:
+// one lets the recipient start checkout for their (unpaid) preview session, the
+// other unsubscribes their email hash. Distinct message prefixes so neither can
+// ever stand in for an access or share token. No expiry: the checkout link dies
+// with the session itself, and an unsubscribe link must keep working.
+
+function signPurpose(purpose: string, subject: string): string {
+  return createHmac('sha256', getSecret()).update(`${purpose}.${subject}`).digest('hex')
+}
+
+function verifyPurpose(purpose: string, subject: string, sig: string | undefined | null): boolean {
+  if (!sig) return false
+  const expected = signPurpose(purpose, subject)
+  if (sig.length !== expected.length) return false
+  try {
+    return timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
+export function createCheckoutLinkToken(sessionId: string): string {
+  return signPurpose('nurture-checkout', sessionId)
+}
+
+export function verifyCheckoutLinkToken(sessionId: string, token: string | undefined | null): boolean {
+  return verifyPurpose('nurture-checkout', sessionId, token)
+}
+
+export function createUnsubscribeToken(emailHash: string): string {
+  return signPurpose('unsubscribe', emailHash)
+}
+
+export function verifyUnsubscribeToken(emailHash: string, token: string | undefined | null): boolean {
+  return verifyPurpose('unsubscribe', emailHash, token)
+}
