@@ -179,6 +179,91 @@ function FollowupQA({ sessionId }: { sessionId: string }) {
   )
 }
 
+// ─── Email capture ────────────────────────────────────────────────────────────
+
+/**
+ * Optional "email me this preview" for visitors who aren't ready to buy. Sends
+ * the preview now plus two short follow-ups (lib/nurture.ts).
+ */
+function EmailCapture({ sessionId }: { sessionId: string }) {
+  const [email, setEmail]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [sentTo, setSentTo]   = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const value = email.trim()
+    if (!value || loading) return
+    setLoading(true); setError(null)
+    try {
+      const res  = await fetch('/api/preview/email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ sessionId, email: value }),
+      })
+      const json: { ok: true } | { error: string } = await res.json()
+      if (!res.ok || 'error' in json) {
+        setError(('error' in json ? json.error : null) ?? 'Could not send. Please try again.')
+        return
+      }
+      track('preview_email_captured')
+      setSentTo(value)
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (sentTo) {
+    return (
+      <div role="status" className="p-5 bg-white border border-brand-border rounded-xl">
+        <p className="text-sm font-semibold text-brand-navy mb-1">Sent. Check your inbox.</p>
+        <p className="text-xs text-brand-muted leading-relaxed break-words">
+          Your preview is on its way to <span className="font-medium text-brand-navy">{sentTo}</span>.
+          If you don&apos;t see it in a minute, check spam.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-5 bg-white border border-brand-border rounded-xl">
+      <p className="text-sm font-semibold text-brand-navy mb-1">Not ready to decide?</p>
+      <p className="text-xs text-brand-muted leading-relaxed mb-3">
+        We&apos;ll email you this preview so you have it when you talk to a contractor, plus two
+        short follow-ups with tips for your situation. Unsubscribe anytime.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          maxLength={320}
+          autoComplete="email"
+          className="input flex-1 text-sm min-w-0"
+          disabled={loading}
+          aria-label="Email address"
+          required
+        />
+        <button
+          type="submit"
+          disabled={!email.trim() || loading}
+          className="px-4 py-2.5 bg-brand-navy text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-opacity flex-shrink-0 flex items-center gap-2"
+        >
+          {loading ? <LoadingSpinner size={14} color="white" /> : 'Email me'}
+        </button>
+      </div>
+      {error && <p role="alert" className="text-xs text-red-700 mt-2">{error}</p>}
+      <p className="text-[11px] text-brand-muted mt-2">
+        We never share your email. See our <a href="/privacy" className="underline underline-offset-2">privacy policy</a>.
+      </p>
+    </form>
+  )
+}
+
 // ─── Checkmark icon ───────────────────────────────────────────────────────────
 
 function Check() {
@@ -438,6 +523,11 @@ export default function PreviewPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── Email capture (for visitors not ready to buy) ────────────── */}
+        <div className="mt-6">
+          <EmailCapture sessionId={sessionId} />
         </div>
 
       </div>

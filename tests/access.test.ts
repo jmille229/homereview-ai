@@ -10,6 +10,10 @@ import {
   createShareToken,
   verifyShareToken,
   accessWindowSeconds,
+  createCheckoutLinkToken,
+  verifyCheckoutLinkToken,
+  createUnsubscribeToken,
+  verifyUnsubscribeToken,
 } from '@/lib/access'
 
 const SID = '11111111-1111-4111-8111-111111111111'
@@ -58,5 +62,31 @@ describe('access tokens', () => {
   it('maps products to their access windows', () => {
     expect(accessWindowSeconds('brief')).toBe(30 * 24 * 60 * 60)
     expect(accessWindowSeconds('shield')).toBe(60 * 24 * 60 * 60)
+  })
+})
+
+describe('nurture link tokens', () => {
+  const HASH = 'a'.repeat(64)
+
+  it('round-trips checkout and unsubscribe tokens', () => {
+    expect(verifyCheckoutLinkToken(SID, createCheckoutLinkToken(SID))).toBe(true)
+    expect(verifyUnsubscribeToken(HASH, createUnsubscribeToken(HASH))).toBe(true)
+  })
+
+  it('binds tokens to their subject', () => {
+    const otherSid = '22222222-2222-4222-8222-222222222222'
+    expect(verifyCheckoutLinkToken(otherSid, createCheckoutLinkToken(SID))).toBe(false)
+    expect(verifyUnsubscribeToken('b'.repeat(64), createUnsubscribeToken(HASH))).toBe(false)
+  })
+
+  it('never lets one purpose stand in for another', () => {
+    expect(verifyUnsubscribeToken(SID, createCheckoutLinkToken(SID))).toBe(false)
+    expect(verifyCheckoutLinkToken(SID, createUnsubscribeToken(SID))).toBe(false)
+    expect(verifyAccessToken(SID, createCheckoutLinkToken(SID))).toBe(false)
+  })
+
+  it('rejects missing tokens', () => {
+    expect(verifyCheckoutLinkToken(SID, null)).toBe(false)
+    expect(verifyUnsubscribeToken(HASH, '')).toBe(false)
   })
 })

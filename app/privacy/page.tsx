@@ -44,6 +44,12 @@ export default function PrivacyPage() {
                 deliver and let you recover your report.
               </li>
               <li>
+                <span className="font-medium text-brand-navy">Email you choose to give us:</span> if
+                you ask us to email your free preview, we use that address to send it, followed by up
+                to two short follow-up emails about it. Every one has an unsubscribe link, and the
+                emails stop as soon as you buy a report or unsubscribe.
+              </li>
+              <li>
                 <span className="font-medium text-brand-navy">Technical information:</span> your IP
                 address and basic request metadata, used for security, abuse prevention, and rate
                 limiting.
@@ -56,7 +62,8 @@ export default function PrivacyPage() {
             <p>
               We use your information solely to provide the service: to generate your analysis, to
               process your payment, to deliver and let you re-access your report, to operate
-              follow-up chat, and to protect the service from abuse. We do not use your information
+              follow-up chat, to send the preview emails you ask for, and to protect the service
+              from abuse. We do not use your information
               for advertising, and we do not sell it.
             </p>
           </section>
@@ -72,7 +79,7 @@ export default function PrivacyPage() {
               <li><span className="font-medium text-brand-navy">Upstash</span> — stores your session and report data.</li>
               <li><span className="font-medium text-brand-navy">Cloudflare</span> — bot / abuse protection.</li>
               <li><span className="font-medium text-brand-navy">Vercel</span> — application hosting.</li>
-              <li><span className="font-medium text-brand-navy">Resend</span> — sends transactional email (e.g., your report link).</li>
+              <li><span className="font-medium text-brand-navy">Resend</span> — sends email (your report link, and preview emails you ask for).</li>
             </ul>
             <p className="mt-3">
               Each processes data only on our behalf to deliver the service. We do not permit them to

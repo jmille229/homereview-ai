@@ -207,6 +207,10 @@ export interface StoredSession {
   /** True while a pre-purchase second-quote comparison is being built in the
    *  background, so the report page can show a "preparing" Compare tab. */
   comparisonPending?: boolean
+  /** Email the visitor gave on the free preview to receive it (and the short
+   *  nurture sequence). Stored lowercased; never returned to the client. */
+  leadEmail?: string
+  leadCapturedAt?: string
   followupCount: number
   followupMessages: FollowupMessage[]
   chatMessages: ChatMessage[]
