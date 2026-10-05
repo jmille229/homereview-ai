@@ -16,6 +16,7 @@ export interface LearnListItem {
   summary:     string
   readTime:    string
   published:   string                 // display string, e.g. "May 2026"
+  publishedAt?: string                // raw ISO date, for structured data
   featured:    boolean
   coverImage?: SanityImageSource
 }
@@ -54,6 +55,7 @@ function toListItem(row: SanityRow): LearnListItem {
     summary:    row.summary ?? '',
     readTime:   row.readTime ?? '',
     published:  formatMonthYear(row.publishedAt),
+    publishedAt: row.publishedAt,
     featured:   row.featured ?? false,
     coverImage: row.coverImage,
   }

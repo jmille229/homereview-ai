@@ -5,6 +5,7 @@ import { priceDisplay } from '@/lib/pricing'
 export const metadata = {
   title: 'About — HomeReview AI',
   description: 'Why we built HomeReview AI and what makes it different.',
+  alternates: { canonical: '/about' },
 }
 
 const VALUES = [

@@ -5,6 +5,7 @@ import { getPublishedArticles, type LearnListItem } from '@/lib/learn'
 export const metadata = {
   title: 'Learn — HomeReview AI',
   description: 'Guides and resources for homeowners navigating repairs and contractor quotes.',
+  alternates:  { canonical: '/learn' },
 }
 
 // ISR — new/edited Sanity articles appear without a redeploy.

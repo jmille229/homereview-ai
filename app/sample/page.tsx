@@ -5,6 +5,7 @@ import { ChatIcon, DocumentIcon } from '@/components/ui/icons'
 export const metadata = {
   title: 'Sample Quote Shield report — HomeReview AI',
   description: 'See exactly what a Quote Shield report looks like before you buy.',
+  alternates: { canonical: '/sample' },
 }
 
 // Representative (fictional) data so prospects can see the real format.
