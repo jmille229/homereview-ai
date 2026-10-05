@@ -314,6 +314,7 @@ export default function HomePage() {
               </div>
               <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Footer navigation">
                 {[
+                  { href: '/check',   label: 'Quote checks' },
                   { href: '/learn',   label: 'Learn' },
                   { href: '/about',   label: 'About' },
                   { href: '/recover', label: 'My report' },
