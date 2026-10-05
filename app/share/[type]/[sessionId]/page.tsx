@@ -15,6 +15,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 export const dynamic = 'force-dynamic'
 
+// Shared reports are private to whoever holds the signed link.
+export const metadata = { robots: { index: false, follow: false } }
+
 /**
  * Read-only shared report. Access is granted by a signed share token in the URL
  * (no cookie, no chat, no uploads). Falls back to home on any mismatch.

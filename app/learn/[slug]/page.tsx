@@ -6,6 +6,8 @@ import { NavBar } from '@/components/ui/NavBar'
 import { LearnBody } from '@/components/learn/LearnBody'
 import { getArticleBySlug, getAllArticleSlugs } from '@/lib/learn'
 import { urlForImage } from '@/sanity/lib/image'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { articleJsonLd, breadcrumbJsonLd } from '@/lib/structuredData'
 
 interface Props {
   params: { slug: string }
@@ -28,9 +30,23 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = await loadArticle(params.slug)
   if (!article) return { title: 'Article — HomeReview AI' }
+  const description = article.seoDescription ?? article.summary
+  const cover = article.coverImage
+    ? urlForImage(article.coverImage).width(1200).height(630).fit('crop').auto('format').url()
+    : null
   return {
     title:       `${article.seoTitle ?? article.title} — HomeReview AI`,
-    description: article.seoDescription ?? article.summary,
+    description,
+    alternates:  { canonical: `/learn/${params.slug}` },
+    openGraph: {
+      title:         article.seoTitle ?? article.title,
+      description,
+      type:          'article',
+      url:           `/learn/${params.slug}`,
+      publishedTime: article.publishedAt,
+      // No cover → the site-wide default share image from app/opengraph-image.tsx.
+      ...(cover ? { images: [{ url: cover, width: 1200, height: 630 }] } : {}),
+    },
   }
 }
 
@@ -44,6 +60,18 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-brand-bg">
+      <JsonLd
+        data={[
+          articleJsonLd({
+            title:       article.title,
+            description: article.seoDescription ?? article.summary,
+            path:        `/learn/${params.slug}`,
+            image:       cover,
+            publishedAt: article.publishedAt,
+          }),
+          breadcrumbJsonLd([['Home', '/'], ['Learn', '/learn'], [article.title, `/learn/${params.slug}`]]),
+        ]}
+      />
       <NavBar variant="site" />
       <article className="max-w-2xl mx-auto px-5 py-8">
         <Link href="/learn" className="text-xs font-semibold text-brand-amber-deep hover:text-brand-navy">
