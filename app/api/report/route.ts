@@ -400,6 +400,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   // The email the buyer used at Stripe checkout — stored so they can reclaim
   // access on another device via /api/report/reclaim.
   const payerEmail = stripeSession.customer_details?.email?.toLowerCase().trim()
+  // What was actually charged (after any promo code) — reported as the
+  // conversion value by the success page's purchase event.
+  const amountPaidCents = stripeSession.amount_total ?? undefined
 
   // Payment is proven for this session: mint a per-session access cookie on
   // every success response below. This is what gates the report pages, chat,
@@ -435,6 +438,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       status:    'generating', // client will poll and find 'complete' immediately
       sessionId: reportSessionId,
       product,
+      amountPaidCents,
     }
     return grant(NextResponse.json(res))
   }
@@ -446,7 +450,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const isStale = Date.now() - new Date(updatedAt).getTime() > fiveMinutesMs
     if (!isStale) {
       // Genuinely in progress — tell client to keep polling
-      const res: GenerateReportResponse = { status: 'generating', sessionId: reportSessionId, product }
+      const res: GenerateReportResponse = { status: 'generating', sessionId: reportSessionId, product, amountPaidCents }
       return grant(NextResponse.json(res, { status: 202 }))
     }
     // Stale — waitUntil likely timed out. Fall through to retry generation.
@@ -525,6 +529,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     status:    'generating',
     sessionId: reportSessionId,
     product,
+    amountPaidCents,
   }
   return grant(NextResponse.json(res, { status: 202 })) // 202 Accepted — work in progress
 }

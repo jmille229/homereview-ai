@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/react'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { AdTracking } from '@/components/analytics/AdTracking'
 
 export const metadata: Metadata = {
   title: 'HomeReview AI — Independent Home Repair Analysis',
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ErrorBoundary>{children}</ErrorBoundary>
         <Analytics />
+        <AdTracking />
       </body>
     </html>
   )

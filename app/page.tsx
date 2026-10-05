@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { track } from '@vercel/analytics'
+import { trackEvent } from '@/lib/analytics'
 import { useSessionStore } from '@/store/session'
 import { NavBar } from '@/components/ui/NavBar'
 import { Button } from '@/components/ui/Button'
@@ -94,7 +94,7 @@ export default function HomePage() {
   const { reset, setFlow } = useSessionStore()
 
   const handleStart = (flow: Flow) => {
-    track('homepage_path_click', { path: flow === 'pre' ? 'brief' : 'shield' })
+    trackEvent('homepage_path_click', { path: flow === 'pre' ? 'brief' : 'shield' })
     reset()
     setFlow(flow)
     router.push('/intake')
@@ -103,7 +103,7 @@ export default function HomePage() {
   // Nav "Start free" is path-neutral — no flow preset, so the intake page shows
   // its own picker and the user self-selects there.
   const handleStartNeutral = () => {
-    track('homepage_path_click', { path: 'nav' })
+    trackEvent('homepage_path_click', { path: 'nav' })
     reset()
     router.push('/intake')
   }

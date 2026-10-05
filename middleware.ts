@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { GOOGLE_ADS_ID, META_PIXEL_ID } from './lib/adConfig'
 
 /**
  * MED-04: Fail loudly at startup if the base URL is missing in production.
@@ -98,16 +99,36 @@ function isStrictPath(pathname: string): boolean {
 // CSP errors during preview testing without loosening the live policy.
 const isPreview = process.env.VERCEL_ENV === 'preview'
 
+// Ad pixels (components/analytics/AdTracking.tsx). Each vendor's hosts are
+// allowlisted ONLY when its env var is set, so with no pixel configured the CSP
+// is exactly what it was before.
+const META_HOSTS = META_PIXEL_ID
+  ? { script: ['https://connect.facebook.net'], connect: ['https://www.facebook.com', 'https://connect.facebook.net'], img: ['https://www.facebook.com'], frame: [] }
+  : { script: [], connect: [], img: [], frame: [] }
+const GOOGLE_ADS_HOSTS = GOOGLE_ADS_ID
+  ? {
+      script:  ['https://www.googletagmanager.com', 'https://www.googleadservices.com', 'https://googleads.g.doubleclick.net', 'https://www.google.com'],
+      connect: ['https://www.google.com', 'https://www.googleadservices.com', 'https://googleads.g.doubleclick.net', 'https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com'],
+      img:     ['https://www.google.com', 'https://googleads.g.doubleclick.net', 'https://www.googletagmanager.com', 'https://www.googleadservices.com'],
+      frame:   ['https://td.doubleclick.net', 'https://www.googletagmanager.com'],
+    }
+  : { script: [], connect: [], img: [], frame: [] }
+
+function adHosts(kind: 'script' | 'connect' | 'img' | 'frame'): string {
+  const hosts = [...META_HOSTS[kind], ...GOOGLE_ADS_HOSTS[kind]]
+  return hosts.length ? ` ${hosts.join(' ')}` : ''
+}
+
 function sharedDirectives(): string[] {
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     `style-src 'self' 'unsafe-inline'${isPreview ? ' https://vercel.live' : ''}`, // Tailwind/Next inject inline styles; far lower risk than script
-    `img-src 'self' data: blob: https://cdn.sanity.io${isPreview ? ' https://vercel.live https://vercel.com' : ''}`,
+    `img-src 'self' data: blob: https://cdn.sanity.io${adHosts('img')}${isPreview ? ' https://vercel.live https://vercel.com' : ''}`,
     `font-src 'self'${isPreview ? ' https://vercel.live https://assets.vercel.com' : ''}`,
-    `connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live https://*.pusher.com wss://*.pusher.com' : ''}`,
-    `frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com${isPreview ? ' https://vercel.live' : ''}`,
+    `connect-src 'self' https://api.stripe.com https://challenges.cloudflare.com${adHosts('connect')}${isPreview ? ' https://vercel.live https://*.pusher.com wss://*.pusher.com' : ''}`,
+    `frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com${adHosts('frame')}${isPreview ? ' https://vercel.live' : ''}`,
     "frame-ancestors 'self'",
     "form-action 'self'",
   ]
@@ -118,6 +139,7 @@ function nonceCsp(nonce: string): string {
     "'self'",
     `'nonce-${nonce}'`,
     'https://challenges.cloudflare.com', // Turnstile widget script
+    adHosts('script').trim(),
     isPreview ? 'https://vercel.live' : '',
     isDev ? "'unsafe-eval'" : '',
   ].filter(Boolean).join(' ')
@@ -133,7 +155,7 @@ function staticCsp(): string {
   // policy never takes effect for that navigation — so without the Cloudflare
   // host here the widget's api.js is blocked on every in-app navigation and only
   // works after a full page reload.
-  const base = "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"
+  const base = `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${adHosts('script')}`
   const scriptSrc = isDev ? `${base} 'unsafe-eval'${live}` : `${base}${live}`
   return [scriptSrc, ...sharedDirectives()].join('; ')
 }
